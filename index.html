@@ -58,7 +58,15 @@ nav .in{display:flex;align-items:center;gap:12px;min-height:56px;padding:0 10px 
 .btn.main{background:var(--yel);color:#1b1a12}
 .btn.ghost{background:rgba(255,255,255,.06);color:var(--chalk)}
 .btn:focus-visible,.tab:focus-visible,.cbtn:focus-visible,.flip:focus-visible{outline:3px solid #fff;outline-offset:3px}
-.scene{width:100%;aspect-ratio:7/5;display:block;transform:translateY(calc(var(--sy)*-.08px))}
+.scenebox{position:relative;transform:translateY(calc(var(--sy)*-.08px))}
+.scene{width:100%;aspect-ratio:7/5;display:block}
+.hero3d{position:absolute;left:60%;top:6%;width:40%;height:64%;pointer-events:none;display:none}
+.has3d .hero3d{display:block}
+.has3d #heroBot,.has3d .bot2d{display:none}
+.i3d{position:absolute;inset:0;width:100%;height:100%;display:block}
+.podium canvas{width:100%;height:clamp(300px,40vw,400px);display:block;cursor:grab;touch-action:pan-y}
+.podium canvas:active{cursor:grabbing}
+.track canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 .chalk{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw 1.6s ease forwards}
 @keyframes draw{to{stroke-dashoffset:0}}
 .stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:30px}
@@ -307,7 +315,7 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
         <div class="stat"><b data-n="8">8</b><span>校園實用系統</span></div>
       </div>
     </div>
-    <svg class="scene" viewBox="0 0 700 500" role="img" aria-label="黑板前的書桌上，一台雙腳桌上機器人和一台顯示小工具的平板">
+    <div class="scenebox"><svg class="scene" viewBox="0 0 700 500" role="img" aria-label="黑板前的書桌上，一台雙腳桌上機器人和一台顯示小工具的平板">
       <defs>
         <linearGradient id="bd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6754"/><stop offset="1" stop-color="#1c4337"/></linearGradient>
         <linearGradient id="wd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d79a5c"/><stop offset="1" stop-color="#a86d38"/></linearGradient>
@@ -333,8 +341,8 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
         <rect x="22" y="44" width="110" height="18" rx="4" fill="#f4cf4a"/><rect x="22" y="68" width="72" height="18" rx="4" fill="#7fb59a"/><rect x="22" y="92" width="132" height="18" rx="4" fill="#e6a463"/>
       </g>
       <ellipse cx="540" cy="334" rx="70" ry="8" fill="#00000035"/>
-      <ellipse cx="540" cy="334" rx="70" ry="8" fill="#00000035"/><svg id="heroBot" x="438" y="110" width="204" height="226" viewBox="0 0 200 222" overflow="visible"></svg>
-    </svg>
+      <ellipse class="bot2d" cx="540" cy="334" rx="70" ry="8" fill="#00000035"/><svg id="heroBot" x="438" y="110" width="204" height="226" viewBox="0 0 200 222" overflow="visible"></svg>
+    </svg><canvas class="hero3d" id="hero3d" aria-hidden="true"></canvas></div>
   </div>
   <div class="cue"><i></i>往下捲動</div>
 </header>
@@ -460,6 +468,299 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
 
 <footer class="band" style="padding-block:28px"><div class="wrap"><span>© 2026 I.C.A.N. 我也可以 AI 教室</span><span><a href="https://znxuyz.github.io/S.H.O.W.-Case/">作品集</a> · <a href="https://github.com/znxuyz">GitHub</a></span></div></footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* I.C.A.N. 3D robot — three.js r128 (global THREE). Exposes window.ICAN3D. */
+window.ICAN3D = (function () {
+  if (!window.THREE) return { ok: false };
+  const T = THREE;
+  try {
+    const c = document.createElement("canvas");
+    if (!(c.getContext("webgl2") || c.getContext("webgl"))) return { ok: false };
+  } catch (e) { return { ok: false }; }
+
+  const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const M = (c, o) => new T.MeshStandardMaterial(Object.assign({ color: c, roughness: .35, metalness: .2 }, o || {}));
+  const MAT = {
+    shell: M(0x2b3038, { roughness: .22, metalness: .45 }),
+    shell2: M(0x1a1d22, { roughness: .4 }),
+    acc: M(0xf2a65a, { roughness: .45 }),
+    silver: M(0xc9d2da, { metalness: .7, roughness: .25 }),
+    star: new T.MeshStandardMaterial({ color: 0xffd65a, emissive: 0xffb000, emissiveIntensity: .9, roughness: .3 }),
+  };
+  const ease = p => p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+  const out = p => 1 - Math.pow(1 - p, 3);
+  const lerp = (a, b, p) => a + (b - a) * p;
+
+  function rr(x, a, b, w, h, r) { r = Math.min(r, h / 2, w / 2); x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
+
+  function faceTex() {
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const x = c.getContext("2d"), tex = new T.CanvasTexture(c);
+    const st = { mode: "n", ex: 0, ey: 0, blink: 0 };
+    function draw() {
+      x.clearRect(0, 0, 256, 256);
+      const g = x.createRadialGradient(110, 90, 10, 128, 128, 130); g.addColorStop(0, "#202a38"); g.addColorStop(1, "#05070a");
+      x.fillStyle = g; x.beginPath(); x.arc(128, 128, 128, 0, 7); x.fill();
+      x.save(); x.translate(st.ex * 24, st.ey * 16);
+      x.shadowColor = "#7ff3ff"; x.shadowBlur = 24; x.fillStyle = "#dcfbff"; x.strokeStyle = "#dcfbff"; x.lineCap = "round";
+      const h = st.blink ? 7 : 50;
+      for (const cx of [86, 170]) {
+        if (st.mode === "h") { x.lineWidth = 14; x.beginPath(); x.arc(cx, 132, 24, Math.PI * 1.12, Math.PI * 1.88); x.stroke(); }
+        else { rr(x, cx - 16, 116 - h / 2, 32, h, 16); x.fill(); }
+      }
+      x.shadowColor = "#ffcf4a"; x.strokeStyle = "#ffd65a"; x.lineWidth = 7;
+      x.beginPath(); x.arc(128, 158, st.mode === "h" ? 22 : 13, Math.PI * .15, Math.PI * .85); x.stroke();
+      x.restore();
+      // glass highlight
+      const hl = x.createLinearGradient(40, 30, 120, 140); hl.addColorStop(0, "rgba(255,255,255,.16)"); hl.addColorStop(1, "rgba(255,255,255,0)");
+      x.fillStyle = hl; x.beginPath(); x.ellipse(96, 78, 70, 38, -.6, 0, 7); x.fill();
+      tex.needsUpdate = true;
+    }
+    draw();
+    return { tex, st, draw };
+  }
+
+  function starGeo(s) {
+    const sh = new T.Shape(), p = [[0, 1], [.2, .2], [1, 0], [.2, -.2], [0, -1], [-.2, -.2], [-1, 0], [-.2, .2]];
+    sh.moveTo(p[0][0] * s, p[0][1] * s); for (let i = 1; i < p.length; i++) sh.lineTo(p[i][0] * s, p[i][1] * s); sh.closePath();
+    const g = new T.ExtrudeGeometry(sh, { depth: s * .25, bevelEnabled: true, bevelThickness: s * .06, bevelSize: s * .05, bevelSegments: 2 });
+    g.center(); return g;
+  }
+  function capsule(r, h, mat) {
+    const g = new T.Group();
+    g.add(new T.Mesh(new T.CylinderGeometry(r, r, h, 24), mat));
+    const a = new T.Mesh(new T.SphereGeometry(r, 24, 16), mat); a.position.y = h / 2; g.add(a);
+    const b = a.clone(); b.position.y = -h / 2; g.add(b); return g;
+  }
+  function shadow(r) {
+    const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d");
+    const g = x.createRadialGradient(64, 64, 4, 64, 64, 64); g.addColorStop(0, "rgba(0,0,0,.45)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+    const m = new T.Mesh(new T.PlaneGeometry(r * 2, r * 2), new T.MeshBasicMaterial({ map: new T.CanvasTexture(c), transparent: true, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2; m.position.y = .01; return m;
+  }
+
+  function robot(variant) {
+    const R = new T.Group(), P = { variant };
+    const body = new T.Group(); R.add(body); P.body = body;
+    const head = new T.Group(); head.position.y = 1.62; body.add(head); P.head = head;
+    const skull = new T.Mesh(new T.SphereGeometry(.9, 48, 32), MAT.shell); skull.scale.set(1, .88, .8); head.add(skull);
+    const ft = faceTex(); P.face = ft;
+    const face = new T.Mesh(new T.CircleGeometry(.6, 48), new T.MeshBasicMaterial({ map: ft.tex })); face.position.z = .735; head.add(face);
+    const bez = new T.Mesh(new T.TorusGeometry(.62, .045, 16, 64), MAT.acc); bez.position.z = .735; head.add(bez);
+    for (const s of [-1, 1]) {
+      const ear = new T.Mesh(new T.CylinderGeometry(.27, .27, .22, 32), MAT.shell2); ear.rotation.z = Math.PI / 2; ear.position.set(s * .9, 0, 0); head.add(ear);
+      const cap = new T.Mesh(new T.CylinderGeometry(.18, .18, .04, 32), MAT.silver); cap.rotation.z = Math.PI / 2; cap.position.set(s * 1.02, 0, 0); head.add(cap);
+      const ring = new T.Mesh(new T.TorusGeometry(.22, .035, 12, 40), MAT.acc); ring.rotation.y = Math.PI / 2; ring.position.set(s * 1.012, 0, 0); head.add(ring);
+    }
+    const stem = new T.Mesh(new T.CylinderGeometry(.03, .03, .34, 12), MAT.silver); stem.position.y = .9; head.add(stem);
+    const star = new T.Mesh(starGeo(.17), MAT.star); star.position.y = 1.13; head.add(star); P.star = star;
+
+    const torso = new T.Mesh(new T.CylinderGeometry(.42, .5, .62, 40), MAT.shell); torso.position.y = .86; body.add(torso);
+    const belt = new T.Mesh(new T.TorusGeometry(.43, .035, 12, 48), MAT.acc); belt.rotation.x = Math.PI / 2; belt.position.y = 1.12; body.add(belt);
+    const badge = new T.Mesh(new T.CircleGeometry(.08, 24), MAT.star); badge.position.set(0, .9, .475); badge.rotation.x = -.13; body.add(badge);
+    for (const s of [-1, 1]) {
+      const sh = new T.Group(); sh.position.set(s * .53, 1.02, 0); body.add(sh);
+      sh.add(new T.Mesh(new T.SphereGeometry(.12, 20, 14), MAT.silver));
+      const arm = capsule(.1, .3, MAT.shell); arm.position.y = -.25; sh.add(arm);
+      const hand = new T.Mesh(new T.SphereGeometry(.12, 20, 14), MAT.acc); hand.position.y = -.47; sh.add(hand);
+      sh.rotation.z = s * .16; P[s < 0 ? "armL" : "armR"] = sh;
+    }
+    if (variant === "wheels") {
+      for (const s of [-1, 1]) {
+        const w = new T.Group(); w.position.set(s * .64, .42, 0); body.add(w);
+        const tire = new T.Mesh(new T.TorusGeometry(.3, .12, 16, 40), MAT.shell2); tire.rotation.y = Math.PI / 2; w.add(tire);
+        const hub = new T.Mesh(new T.CylinderGeometry(.2, .2, .17, 32), MAT.acc); hub.rotation.z = Math.PI / 2; w.add(hub);
+        P[s < 0 ? "wl" : "wr"] = w;
+      }
+      const ax = new T.Mesh(new T.CylinderGeometry(.06, .06, 1.2, 12), MAT.silver); ax.rotation.z = Math.PI / 2; ax.position.y = .42; body.add(ax);
+    } else if (variant === "stand") {
+      const neck = new T.Mesh(new T.CylinderGeometry(.16, .2, .2, 24), MAT.shell2); neck.position.y = .48; body.add(neck);
+      const base = new T.Mesh(new T.CylinderGeometry(.72, .8, .36, 48), MAT.acc); base.position.y = .2; body.add(base);
+      const top = new T.Mesh(new T.CylinderGeometry(.66, .72, .04, 48), MAT.shell2); top.position.y = .4; body.add(top);
+    } else {
+      for (const s of [-1, 1]) {
+        const hip = new T.Group(); hip.position.set(s * .22, .58, 0); body.add(hip);
+        hip.add(new T.Mesh(new T.SphereGeometry(.12, 20, 14), MAT.silver));
+        const leg = capsule(.13, .18, MAT.shell); leg.position.y = -.17; hip.add(leg);
+        const foot = new T.Mesh(new T.BoxGeometry(.34, .14, .5), MAT.shell2); foot.position.set(0, -.44, .07); hip.add(foot);
+        const sole = new T.Mesh(new T.BoxGeometry(.35, .04, .51), MAT.acc); sole.position.set(0, -.52, .07); hip.add(sole);
+        P[s < 0 ? "legL" : "legR"] = hip;
+      }
+    }
+    R.add(shadow(variant === "wheels" ? 1.2 : 1));
+    P.next = 2 + Math.random() * 2; P.wave = 0; P.happy = 0; P.walk = 0;
+    return { group: R, P };
+  }
+
+  // per-frame body language: blink, wave, walk, star spin, expression
+  function animate(rb, dt, t) {
+    const P = rb.P, f = P.face;
+    if (t > P.next) { f.st.blink = 1; f.draw(); P.next = t + 3 + Math.random() * 2.5; setTimeout(() => { f.st.blink = 0; f.draw(); }, 130); }
+    const happy = P.happy > 0; if (happy !== (f.st.mode === "h")) { f.st.mode = happy ? "h" : "n"; f.draw(); }
+    if (P.happy > 0) P.happy -= dt;
+    P.star.rotation.y += dt * (P.happy > 0 ? 6 : 1.2);
+    if (P.wave > 0) { P.wave -= dt; P.armR.rotation.z = lerp(P.armR.rotation.z, 2.3 + Math.sin(t * 14) * .45, .3); }
+    else if (P.reach == null) P.armR.rotation.z = lerp(P.armR.rotation.z, .16, .15);
+    if (P.reach != null) { for (const a of [P.armL, P.armR]) a.rotation.x = lerp(a.rotation.x, P.reach, .2); }
+    else for (const a of [P.armL, P.armR]) a.rotation.x = lerp(a.rotation.x, P.walk ? Math.sin(t * 13 + (a === P.armL ? 0 : Math.PI)) * .5 : 0, .2);
+    if (P.legL) {
+      const sw = P.walk ? Math.sin(t * 13) * .55 : 0;
+      P.legL.rotation.x = lerp(P.legL.rotation.x, sw, .3); P.legR.rotation.x = lerp(P.legR.rotation.x, -sw, .3);
+      P.body.position.y = P.walk ? Math.abs(Math.sin(t * 13)) * .05 : lerp(P.body.position.y, Math.sin(t * 2) * .015, .1);
+    }
+    if (P.wl) { const v = P.spin || 0; P.wl.rotation.x += v * dt; P.wr.rotation.x += v * dt; }
+  }
+
+  const views = [];
+  function view(canvas, o) {
+    o = o || {};
+    const r = new T.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    r.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+    const sc = new T.Scene(), cam = new T.PerspectiveCamera(o.fov || 30, 1, .1, 100);
+    sc.add(new T.HemisphereLight(0xffffff, 0x2a3b33, .9));
+    const d = new T.DirectionalLight(0xffffff, .95); d.position.set(3, 6, 5); sc.add(d);
+    const rim = new T.DirectionalLight(0x9fd8ff, .8); rim.position.set(-4, 3, -4); sc.add(rim);
+    const warm = new T.PointLight(0xffc27a, .5, 12); warm.position.set(2, 1, 3); sc.add(warm);
+    const v = { r, sc, cam, canvas, vis: true, update: null, t0: performance.now(), dead: false };
+    const rs = () => { const w = canvas.clientWidth, h = canvas.clientHeight; if (!w || !h) return; r.setSize(w, h, false); cam.aspect = w / h; cam.updateProjectionMatrix(); if (v.onResize) v.onResize(w, h); };
+    new ResizeObserver(rs).observe(canvas); rs();
+    new IntersectionObserver(es => { v.vis = es[0].isIntersecting; }).observe(canvas);
+    views.push(v); return v;
+  }
+  let last = performance.now();
+  function loop(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now;
+    for (const v of views) {
+      if (!v.vis || v.dead) continue;
+      if (v.update) v.update(dt, (now - v.t0) / 1000);
+      v.r.render(v.sc, v.cam);
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  /* ---------- intro: the robot builds the page, turning to receive and place each piece ---------- */
+  function intro(canvas, hooks) {
+    const v = view(canvas, { fov: 32 });
+    v.cam.position.set(.4, 2.1, 9); v.cam.lookAt(0, 1.3, 0);
+    v.onResize = (w, h) => { const narrow = w / h < 1; v.cam.position.set(narrow ? 0 : .4, narrow ? 2.6 : 2.1, narrow ? 15 : 9); v.cam.lookAt(narrow ? .2 : 0, 1.3, 0); };
+    v.onResize(canvas.clientWidth, canvas.clientHeight);
+    const panel = new T.Group(); panel.position.set(-1.45, 1.6, -.4); panel.rotation.y = .36; v.sc.add(panel);
+    const back = new T.Mesh(new T.BoxGeometry(4.3, 2.8, .1), M(0xf7f5ee, { roughness: .8 })); panel.add(back);
+    const bar = new T.Mesh(new T.BoxGeometry(4.3, .26, .11), M(0xe2ddd0, { roughness: .8 })); bar.position.y = 1.27; panel.add(bar);
+    [-1.95, -1.8, -1.65].forEach(x => { const d = new T.Mesh(new T.CircleGeometry(.045, 16), new T.MeshBasicMaterial({ color: 0xb9b2a2 })); d.position.set(x, 1.27, .06); panel.add(d); });
+    const box = (w, h, col, x, y) => { const m = new T.Mesh(new T.BoxGeometry(w, h, .08), M(col, { roughness: .6 })); m.position.set(x, y, 0); return m; };
+    const mk = parts => { const g = new T.Group(); parts.forEach(p => g.add(p)); return g; };
+    const pieces = [
+      { g: mk([box(3.95, .16, 0x143229, 0, 0)]), at: [0, .98] },
+      { g: mk([box(3.95, .74, 0x245a48, 0, 0), box(1.6, .09, 0xf4cf4a, -1.0, .18), box(1.6, .06, 0xf6f4ec, -1.0, .02)]), at: [0, .45] },
+      { g: mk([0x1f4a3d, 0xb5653a, 0x3a6ea5, 0x7b4ea3].map((c, i) => box(.9, .52, c, -1.47 + i * .98, 0))), at: [0, -.22] },
+      { g: mk([box(1.3, .26, 0x2f8a6a, -1.32, 0), box(1.3, .26, 0x3a6ea5, 0, 0), box(1.3, .26, 0xd9a43a, 1.32, 0)]), at: [0, -.74] },
+    ];
+    pieces.forEach(p => { p.g.visible = false; v.sc.add(p.g); });
+    const rb = robot("legs"); rb.group.position.set(2.1, 0, .7); rb.group.scale.setScalar(.92); v.sc.add(rb.group);
+    const P = rb.P;
+    const src = [[-8, 1.6, 1.4], [2.1, 7, 1.2], [8.5, 1.6, 1.4], [2.1, -3.5, 2]];
+    const look = [[-1.35, 0], [0, -.55], [1.35, 0], [0, .42]];
+    const names = ["從左邊接住：玻璃導覽列", "從天上接住：黑板首頁", "從右邊接住：14 張翻牌卡", "從下面接住：捲動動畫與手機版"];
+    const towardPanel = () => Math.atan2(panel.position.x - rb.group.position.x, panel.position.z - rb.group.position.z);
+    const tasks = [];
+    const tw = (s, d, init, ez) => tasks.push({ s, d, init, ez: ez || ease, fn: null, done: false });
+    const V = (x, y, z) => new T.Vector3(x, y, z);
+    const hands = () => rb.group.localToWorld(V(0, 1.15, .95));
+    let t = .35;
+    pieces.forEach((pc, k) => {
+      tw(t, .32, () => { hooks.line(names[k]); const a = rb.group.rotation.y, h = P.head.rotation.x; return p => { rb.group.rotation.y = lerp(a, look[k][0], p); P.head.rotation.x = lerp(h, look[k][1], p); }; });
+      tw(t + .12, .5, () => { pc.g.visible = true; pc.g.position.set(...src[k]); pc.g.scale.setScalar(.35); P.reach = k === 1 ? -2.6 : k === 3 ? -.5 : -1.2; const a = pc.g.position.clone(); return p => { pc.g.position.lerpVectors(a, hands(), p); pc.g.rotation.z = (1 - p) * 2.5; pc.g.rotation.y = rb.group.rotation.y; }; }, out);
+      tw(t + .66, .36, () => { const a = rb.group.rotation.y, h = P.head.rotation.x, x0 = rb.group.position.x, tp = towardPanel(); P.walk = 1; P.reach = -1.2; return p => { rb.group.rotation.y = lerp(a, tp, p); P.head.rotation.x = lerp(h, -.1, p); rb.group.position.x = lerp(x0, 1.7, p); pc.g.position.copy(hands()); pc.g.rotation.y = rb.group.rotation.y; if (p === 1) P.walk = 0; }; });
+      tw(t + 1.02, .34, () => { const a = pc.g.position.clone(), s0 = pc.g.scale.x, r0 = pc.g.rotation.y; const target = panel.localToWorld(V(pc.at[0], pc.at[1], .1)); return p => { pc.g.position.lerpVectors(a, target, p); pc.g.position.y += Math.sin(p * Math.PI) * .6; pc.g.scale.setScalar(lerp(s0, 1, p)); pc.g.rotation.y = lerp(r0, panel.rotation.y, p); rb.group.position.y = Math.sin(p * Math.PI) * .35; }; });
+      tw(t + 1.36, .34, () => { hooks.step(k); P.reach = null; P.happy = .5; const a = rb.group.rotation.y, x0 = rb.group.position.x; P.walk = 1; return p => { rb.group.rotation.y = lerp(a, 0, p); rb.group.position.x = lerp(x0, 2.1, p); if (p === 1) P.walk = 0; }; });
+      t += 1.72;
+    });
+    tw(t, .5, () => { hooks.line("完成！歡迎來到 I.C.A.N. 我也可以"); const x0 = rb.group.position.x; P.walk = 1; return p => { rb.group.position.x = lerp(x0, 1.5, p); rb.group.rotation.y = Math.sin(p * Math.PI) * -.5; if (p === 1) { P.walk = 0; P.wave = 1.4; P.happy = 1.6; } }; });
+    tw(t + 2.1, .01, () => { hooks.done(); return () => { }; });
+    v.update = (dt, tt) => {
+      for (const k of tasks) {
+        if (k.done || tt < k.s) continue;
+        if (!k.fn) k.fn = k.init();
+        const p = Math.min(1, (tt - k.s) / k.d); k.fn(k.ez(p)); if (p >= 1) k.done = true;
+      }
+      animate(rb, dt, tt);
+    };
+    return { stop() { v.dead = true; } };
+  }
+
+  /* ---------- hero: idle robot on the desk ---------- */
+  function hero(canvas) {
+    const v = view(canvas, { fov: 26 });
+    v.cam.position.set(0, 1.5, 8); v.cam.lookAt(0, 1.2, 0);
+    const rb = robot("legs"); rb.group.rotation.y = -.25; v.sc.add(rb.group);
+    let nextWave = 4;
+    v.update = (dt, t) => {
+      if (!RM) {
+        rb.P.head.rotation.y = Math.sin(t * .55) * .35; rb.P.head.rotation.x = Math.sin(t * .8) * .06;
+        rb.group.rotation.y = -.25 + Math.sin(t * .3) * .15;
+        if (t > nextWave) { rb.P.wave = 1.3; rb.P.happy = 1.3; nextWave = t + 7; }
+      }
+      animate(rb, dt, t);
+    };
+    return v;
+  }
+
+  /* ---------- showcase: drag to spin, click to wave, eyes follow pointer ---------- */
+  function show(canvas) {
+    const v = view(canvas, { fov: 28 });
+    v.cam.position.set(0, 1.6, 7.4); v.cam.lookAt(0, 1.25, 0);
+    let rb = null, spin = 0, drag = null, auto = !RM, look = { x: 0, y: 0 };
+    const set = variant => { if (rb) v.sc.remove(rb.group); rb = robot(variant); rb.group.rotation.y = spin; if (variant === "wheels") rb.P.spin = 0; v.sc.add(rb.group); };
+    set("legs");
+    canvas.addEventListener("pointerdown", e => { drag = { x: e.clientX, s: spin, moved: false }; canvas.setPointerCapture(e.pointerId); });
+    canvas.addEventListener("pointermove", e => {
+      const r = canvas.getBoundingClientRect(); look.x = ((e.clientX - r.left) / r.width - .5) * 2; look.y = ((e.clientY - r.top) / r.height - .4) * 2;
+      if (drag) { const dx = e.clientX - drag.x; if (Math.abs(dx) > 4) drag.moved = true; spin = drag.s + dx * .012; auto = false; }
+    });
+    canvas.addEventListener("pointerup", () => { if (drag && !drag.moved && rb) { rb.P.wave = 1.6; rb.P.happy = 1.8; if (rb.P.wl) rb.P.spin = 8; } drag = null; });
+    canvas.addEventListener("pointerleave", () => { look.x = look.y = 0; });
+    v.update = (dt, t) => {
+      if (auto) spin = Math.sin(t * .45) * .55;
+      rb.group.rotation.y = lerp(rb.group.rotation.y, spin, .15);
+      rb.P.head.rotation.y = lerp(rb.P.head.rotation.y, look.x * .45, .1);
+      rb.P.head.rotation.x = lerp(rb.P.head.rotation.x, look.y * .25, .1);
+      rb.P.face.st.ex = lerp(rb.P.face.st.ex, look.x * .6, .2); rb.P.face.st.ey = lerp(rb.P.face.st.ey, look.y * .5, .2);
+      if (Math.round(t * 20) % 2 === 0) rb.P.face.draw();
+      if (rb.P.wl) rb.P.spin = lerp(rb.P.spin, 0, .02);
+      rb.group.position.y = RM ? 0 : Math.sin(t * 2) * .06 + .06;
+      animate(rb, dt, t);
+    };
+    return { set };
+  }
+
+  /* ---------- track: walks across as the page scrolls, turning to face where it goes ---------- */
+  function track(canvas) {
+    const v = view(canvas, { fov: 18 });
+    let half = 4;
+    v.onResize = (w, h) => { v.cam.position.set(0, 1.25, 14); v.cam.lookAt(0, 1.1, 0); half = Math.tan(T.MathUtils.degToRad(9)) * 14 * (w / h) - .9; };
+    v.onResize(canvas.clientWidth, canvas.clientHeight);
+    const rb = robot("legs"); v.sc.add(rb.group);
+    let target = 0, x = -half, still = 0;
+    v.update = (dt, t) => {
+      const tx = -half + target * half * 2, dx = tx - x;
+      x += dx * Math.min(1, dt * 4); rb.group.position.x = x;
+      const moving = Math.abs(dx) > .03; still = moving ? 0 : still + dt;
+      rb.P.walk = moving ? 1 : 0;
+      const face = moving ? (dx > 0 ? Math.PI / 2 : -Math.PI / 2) : (still > .4 ? 0 : rb.group.rotation.y);
+      rb.group.rotation.y = lerp(rb.group.rotation.y, face, .12);
+      animate(rb, dt, t);
+    };
+    return { progress(p) { target = Math.max(0, Math.min(1, p)); } };
+  }
+
+  return { ok: true, intro, hero, show, track };
+})();
+
+</script>
 <script>
 window.ICANBOT=function(p,variant,o){o=o||{};
 const g=`<defs>
@@ -538,6 +839,16 @@ let variant="legs";const drawShow=()=>{showBot.innerHTML=ICANBOT("sb",variant);}
 for(const b of document.querySelectorAll(".vbtn"))b.addEventListener("click",()=>{variant=b.dataset.v;for(const x of document.querySelectorAll(".vbtn"))x.setAttribute("aria-pressed",x===b?"true":"false");drawShow();});
 showBot.addEventListener("click",()=>{podium.classList.remove("hi");void podium.offsetWidth;podium.classList.add("hi");const m=document.getElementById("sbmouth");if(m){m.setAttribute("d","M86 104 q14 16 28 0");setTimeout(()=>m&&m.setAttribute("d","M88 108 q12 9 24 0"),2000);}});
 if(!RM)podium.addEventListener("pointermove",e=>{const r=showBot.getBoundingClientRect(),dx=(e.clientX-(r.left+r.width/2))/r.width,dy=(e.clientY-(r.top+r.height*.35))/r.height;const ey=document.getElementById("sbeyes");if(ey)ey.style.transform=`translate(${Math.max(-8,Math.min(8,dx*16)).toFixed(1)}px,${Math.max(-5,Math.min(5,dy*10)).toFixed(1)}px)`;});
+const walkBot=document.getElementById("walkBot");
+let show3d=null,track3d=null;
+if(window.ICAN3D&&ICAN3D.ok){try{
+ document.documentElement.classList.add("has3d");
+ ICAN3D.hero(document.getElementById("hero3d"));
+ const sc=document.createElement("canvas");sc.setAttribute("aria-label","I.C.A.N. 3D 桌上機器人，可拖曳旋轉");showBot.replaceWith(sc);show3d=ICAN3D.show(sc);
+ document.querySelector(".podium .tip").textContent="左右拖曳可以轉動，點一下跟它打招呼";
+ for(const b of document.querySelectorAll(".vbtn"))b.addEventListener("click",()=>show3d.set(b.dataset.v));
+ const tc=document.createElement("canvas");walkBot.replaceWith(tc);track3d=ICAN3D.track(tc);
+}catch(e){document.documentElement.classList.remove("has3d");}}
 /* courses: flip cards */
 const icon=()=>`<svg aria-hidden="true"><use href="#ai"/></svg>`;
 const rail=document.getElementById("rail");
@@ -585,13 +896,19 @@ for(const b of document.querySelectorAll("[data-n]"))cnt.observe(b);}
 /* intro: the I.C.A.N. robot builds this page (every visit) */
 const intro=document.getElementById("intro");
 const timers=[];const at=(ms,fn)=>timers.push(setTimeout(fn,ms));
-let finished=false;
-function finishIntro(){if(finished)return;finished=true;timers.forEach(clearTimeout);
+let finished=false,intro3d=null;
+function finishIntro(){if(finished)return;finished=true;timers.forEach(clearTimeout);if(intro3d)setTimeout(()=>intro3d.stop(),800);
  intro.classList.add("out");document.documentElement.classList.remove("intro");startCounters();setTimeout(()=>intro.remove(),750);}
 if(RM){intro.remove();startCounters();}
 else{
  document.documentElement.classList.add("intro");
  document.getElementById("skip").addEventListener("click",finishIntro);
+ const st0=[...document.querySelectorAll("#ist div")],line0=document.getElementById("iline");
+ if(window.ICAN3D&&ICAN3D.ok){
+  const stg=document.getElementById("stage");stg.innerHTML='<canvas class="i3d"></canvas>';
+  intro3d=ICAN3D.intro(stg.firstChild,{step:k=>st0[k]&&st0[k].classList.add("on"),line:t=>{line0.textContent=t;},done:finishIntro});
+  at(14000,finishIntro);
+ } else {
  const bot=document.getElementById("ibot"),stage=document.getElementById("stage"),carry=document.getElementById("carry");
  const st=[...document.querySelectorAll("#ist div")],sl=[...document.querySelectorAll(".slots>*")],line=document.getElementById("iline");
  const cols=["#143229","linear-gradient(90deg,#1f4a3d,#2f6754)","linear-gradient(90deg,#1f4a3d,#b5653a,#3a6ea5,#7b4ea3)","linear-gradient(90deg,#2f8a6a,#3a6ea5,#d9a43a)"];
@@ -624,6 +941,7 @@ else{
  at(5450,()=>{const{W,H,bw,bh}=S();mode("walk");move(W/2-bw/2,H-bh,1,600);});
  at(6100,()=>{mode();bot.classList.add("wave");document.getElementById("ibmouth").setAttribute("d","M86 104 q14 16 28 0");});
  at(7300,finishIntro);
+ }
 }
 
 /* typed word */
@@ -636,7 +954,7 @@ if(!RM)setInterval(()=>{for(const id of ["hbeyes","sbeyes","ibeyes","wkeyes"]){c
 /* scroll-driven: progress bar, nav, parallax, story, robot walk */
 const bar=document.getElementById("bar"),nav=document.getElementById("nav"),story=document.getElementById("story"),dev=document.getElementById("dev");
 const sts=[...document.querySelectorAll(".st")],svs=[...document.querySelectorAll(".sv")];
-const track=document.getElementById("track"),walkBot=document.getElementById("walkBot");
+const track=document.getElementById("track");
 const chips=document.getElementById("chips");
 chips.innerHTML=Array.from({length:12},(_,i)=>`<span class="${[2,5,9].includes(i)?"used":""}">${i+1} 號</span>`).join("");
 const secs=[...document.querySelectorAll("section[id]")],navA=[...document.querySelectorAll(".links a")];
@@ -649,8 +967,8 @@ function onScroll(){ticking=false;const y=scrollY,h=document.documentElement.scr
  if(s!==cur){cur=s;sts.forEach((el,i)=>el.classList.toggle("on",i===s));svs.forEach((el,i)=>el.classList.toggle("on",i===s));}
  dev.style.setProperty("--tilt",((p-.5)*-14).toFixed(2));
  const tr=track.getBoundingClientRect(),tp=Math.min(1,Math.max(0,1-(tr.top+tr.height)/(innerHeight+tr.height)));
- const x=tp*Math.max(0,tr.width-150);walkBot.style.setProperty("--rp",x.toFixed(1));
- if(!RM){const ph=Math.sin(x/14),L=walkBot.querySelector(".l1"),R=walkBot.querySelector(".l2");if(L&&R){L.style.transform=`translateY(${(-Math.max(0,ph)*9).toFixed(1)}px)`;R.style.transform=`translateY(${(-Math.max(0,-ph)*9).toFixed(1)}px)`;}walkBot.style.rotate=(ph*3).toFixed(2)+"deg";}
+ const x=tp*Math.max(0,tr.width-150);if(track3d)track3d.progress(tp);else walkBot.style.setProperty("--rp",x.toFixed(1));
+ if(!RM&&!track3d){const ph=Math.sin(x/14),L=walkBot.querySelector(".l1"),R=walkBot.querySelector(".l2");if(L&&R){L.style.transform=`translateY(${(-Math.max(0,ph)*9).toFixed(1)}px)`;R.style.transform=`translateY(${(-Math.max(0,-ph)*9).toFixed(1)}px)`;}walkBot.style.rotate=(ph*3).toFixed(2)+"deg";}
  let a=-1;secs.forEach((sec,i)=>{if(sec.getBoundingClientRect().top<140)a=i;});navA.forEach(l=>l.classList.toggle("on",a>=0&&l.getAttribute("href")==="#"+secs[a].id));}
 addEventListener("scroll",()=>{if(!ticking){ticking=true;requestAnimationFrame(onScroll);}},{passive:true});
 addEventListener("resize",onScroll);onScroll();
