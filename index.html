@@ -284,6 +284,60 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
 @media(max-width:900px){.hero .wrap,.about .wrap,.contact .wrap{grid-template-columns:minmax(0,1fr)}.pin .wrap{grid-template-columns:minmax(0,1fr);gap:18px}.pin .device{order:-1;max-width:460px;width:100%;justify-self:center}.steps .st:not(.on){display:none}.vers{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:600px){.links{width:100%}.navcta{display:none}.bento{grid-template-columns:minmax(0,1fr)}.tool.big,.tool.wide{grid-column:auto}.row2{grid-template-columns:minmax(0,1fr)}.stat b{font-size:26px}.hero{padding-top:130px}.cue{display:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.chalk{stroke-dashoffset:0}.js .rv{opacity:1;transform:none}.marq{width:auto;flex-wrap:wrap}}
+/* ============ I.C.A.N. visual upgrade v2：玻璃、極光、霓虹（純 CSS） ============ */
+@property --ang{syntax:"<angle>";inherits:false;initial-value:0deg}
+@property --glow{syntax:"<number>";inherits:false;initial-value:0}
+/* 1. 英雄區：毛玻璃黑板 + 浮空機器人 */
+.scenebox{isolation:isolate}
+.scenebox::before{content:"";position:absolute;z-index:-2;left:6%;top:0;width:70%;height:62%;background:radial-gradient(40% 50% at 30% 40%,#2fd3a066,transparent 70%),radial-gradient(35% 45% at 75% 60%,#f4cf4a55,transparent 70%),radial-gradient(30% 40% at 55% 20%,#8fa8ff55,transparent 70%);filter:blur(30px);animation:aur 14s ease-in-out infinite alternate}
+@keyframes aur{to{transform:translate(4%,6%) scale(1.08) rotate(8deg)}}
+.scene .bd{display:none}
+.gboard{position:absolute;z-index:-1;left:2.86%;top:4%;width:94.28%;height:60%;border-radius:22px;background:linear-gradient(155deg,rgba(255,255,255,.16),rgba(255,255,255,.04) 45%,rgba(143,230,255,.06));-webkit-backdrop-filter:blur(18px) saturate(140%);backdrop-filter:blur(18px) saturate(140%);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -1px 0 rgba(255,255,255,.06),0 30px 60px -30px rgba(0,0,0,.55)}
+.gboard::before{content:"";position:absolute;inset:0;border-radius:inherit;padding:1.5px;background:conic-gradient(from var(--ang),rgba(244,207,74,.9),rgba(143,230,255,.75),rgba(255,143,163,.6),rgba(47,211,160,.8),rgba(244,207,74,.9));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);animation:spin 9s linear infinite;opacity:.75}
+.gboard::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(115deg,transparent 30%,rgba(255,255,255,.1) 42%,transparent 50%);pointer-events:none}
+@keyframes spin{to{--ang:360deg}}
+.hero3d,#heroBot{animation:float 5.2s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+#heroBot{transform-box:fill-box}
+.bshadow{transform-box:fill-box;transform-origin:center;animation:shade 5.2s ease-in-out infinite}
+@keyframes shade{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(.72);opacity:.55}}
+/* 2. 方法步驟：Mac 視窗 + 能量注入 */
+.device{padding-top:40px;background:linear-gradient(180deg,#2a3038,#1b2026);box-shadow:0 30px 60px -20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.12)}
+.device::before{content:"";position:absolute;left:18px;top:14px;width:12px;height:12px;border-radius:50%;background:#ff5f57;box-shadow:20px 0 #febc2e,40px 0 #28c840}
+.device::after{content:"ican.app — 抽籤小工具";position:absolute;left:0;right:0;top:11px;text-align:center;font:12px ui-monospace,Menlo,monospace;color:#9aa3ab;letter-spacing:.04em}
+.st{position:relative;border-left-color:transparent;transition:opacity .4s,transform .4s}
+.st::before{content:"";position:absolute;left:-4px;top:0;bottom:0;width:4px;border-radius:4px;background:var(--line);transition:background .4s,box-shadow .4s}
+.st .n{display:inline-grid;place-items:center;width:34px;height:34px;margin-right:10px;border-radius:11px;font:700 18px ui-monospace,Menlo,monospace;font-style:normal;background:var(--line);color:var(--soft);vertical-align:2px;transition:background .4s,color .4s,box-shadow .4s}
+.st.on,.st:hover{opacity:1;transform:translateX(4px)}
+.st.on::before,.st:hover::before{background:linear-gradient(180deg,#f4cf4a,#2fd3a0,#8fe6ff,#ff8fa3,#f4cf4a);background-size:100% 300%;animation:flowY 3s linear infinite,pulse 2.2s ease-in-out infinite}
+.st.on .n,.st:hover .n{background:linear-gradient(135deg,#f4cf4a,#2fd3a0 55%,#8fe6ff);color:#10231c;animation:pulse 2.2s ease-in-out infinite}
+@keyframes flowY{to{background-position:0 300%}}
+@keyframes pulse{0%,100%{box-shadow:0 0 6px rgba(244,207,74,.45),0 0 0 rgba(47,211,160,0)}50%{box-shadow:0 0 16px rgba(244,207,74,.85),0 0 30px rgba(47,211,160,.45)}}
+/* 3. 研習翻牌卡：暗底霓虹 + 3D 傾斜 + 流動光框 */
+.flip{position:relative;transform:perspective(900px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));transition:transform .25s ease-out;transform-style:preserve-3d}
+.flip::before{content:"";position:absolute;inset:-2px;border-radius:22px;padding:2px;background:conic-gradient(from var(--ang),transparent 0 55%,var(--c,#f4cf4a) 70%,#8fe6ff 82%,transparent 95%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask:linear-gradient(#000 0 0) content-box exclude,linear-gradient(#000 0 0);opacity:0;transition:opacity .35s;animation:spin 3.2s linear infinite;pointer-events:none;filter:drop-shadow(0 0 6px var(--c,#f4cf4a))}
+.flip:hover::before,.flip:focus-visible::before,.flip.on::before{opacity:1}
+.flip:hover{--lift:1}
+.front{background:radial-gradient(120% 70% at 0% 0%,color-mix(in srgb,var(--c) 80%,transparent),transparent 62%),radial-gradient(90% 60% at 100% 100%,color-mix(in srgb,var(--c) 40%,#7c5cff 35%),transparent 70%),radial-gradient(60% 40% at 80% 20%,rgba(143,230,255,.18),transparent 70%),#0b0f14!important;border:1px solid rgba(255,255,255,.08);box-shadow:0 18px 40px -18px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12)}
+.front::after{content:"";position:absolute;inset:0;background:radial-gradient(260px circle at var(--mx,50%) var(--my,30%),rgba(255,255,255,.14),transparent 60%);opacity:0;transition:opacity .3s;pointer-events:none}
+.flip:hover .front::after{opacity:1}
+.front h3{text-shadow:0 0 18px color-mix(in srgb,var(--c) 70%,transparent)}
+.front>svg{fill:var(--c);opacity:.22;filter:drop-shadow(0 0 12px var(--c))}
+.back{background:linear-gradient(160deg,#121821,#0b0f14);color:#e8eef2;border:1px solid color-mix(in srgb,var(--c) 45%,transparent);box-shadow:inset 0 0 40px color-mix(in srgb,var(--c) 18%,transparent)}
+.back h3{color:#fff}.back .meta{color:#9fb0bb}.back li::marker{color:var(--c)}
+/* 4. 邀約表單：圓角微發光 + 能量波紋 */
+form{border-radius:26px}
+input,select,textarea{border-radius:14px;border:1.5px solid color-mix(in srgb,var(--line) 70%,#8fe6ff 30%);box-shadow:0 0 0 0 rgba(47,211,160,0),inset 0 1px 2px rgba(0,0,0,.06);transition:border-color .25s,box-shadow .25s,background .25s}
+input:hover,select:hover,textarea:hover{border-color:color-mix(in srgb,#2fd3a0 55%,var(--line))}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#2fd3a0;background:color-mix(in srgb,var(--bg) 92%,#2fd3a0);animation:ripple .9s ease-out,halo 2.6s 0.9s ease-in-out infinite}
+@keyframes ripple{0%{box-shadow:0 0 0 0 rgba(47,211,160,.55),0 0 0 0 rgba(244,207,74,.4)}70%{box-shadow:0 0 0 10px rgba(47,211,160,0),0 0 0 18px rgba(244,207,74,0)}100%{box-shadow:0 0 0 3px rgba(47,211,160,.22),0 0 18px rgba(47,211,160,.25)}}
+@keyframes halo{0%,100%{box-shadow:0 0 0 3px rgba(47,211,160,.22),0 0 18px rgba(47,211,160,.25)}50%{box-shadow:0 0 0 3px rgba(143,230,255,.3),0 0 26px rgba(143,230,255,.35)}}
+form .btn.main{position:relative;overflow:hidden;justify-content:center;border-radius:14px;border:0;background:linear-gradient(120deg,#f4cf4a,#ffd98a 40%,#2fd3a0);background-size:200% 100%;box-shadow:0 10px 30px -10px rgba(244,207,74,.7),inset 0 1px 0 rgba(255,255,255,.6);transition:background-position .6s,transform .2s,box-shadow .3s}
+form .btn.main::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 35%,rgba(255,255,255,.65) 50%,transparent 65%);transform:translateX(-120%);transition:transform .8s}
+form .btn.main:hover{background-position:100% 0;box-shadow:0 14px 36px -10px rgba(47,211,160,.7),inset 0 1px 0 rgba(255,255,255,.6);transform:translateY(-2px)}
+form .btn.main:hover::after{transform:translateX(120%)}
+form .tab{border-radius:14px}
+@media(prefers-reduced-motion:reduce){.scenebox::before,.gboard::before,.hero3d,#heroBot,.bshadow,.st::before,.st .n,.flip::before,input:focus,select:focus,textarea:focus{animation:none!important}.flip{transform:none!important}}
 </style>
 </head>
 <body>
@@ -321,14 +375,14 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
         <div class="stat"><b data-n="8">8</b><span>校園實用系統</span></div>
       </div>
     </div>
-    <div class="scenebox"><svg class="scene" viewBox="0 0 700 500" role="img" aria-label="黑板前的書桌上，一台雙腳桌上機器人和一台顯示小工具的平板">
+    <div class="scenebox"><div class="gboard" aria-hidden="true"></div><svg class="scene" viewBox="0 0 700 500" role="img" aria-label="黑板前的書桌上，一台雙腳桌上機器人和一台顯示小工具的平板">
       <defs>
         <linearGradient id="bd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f6754"/><stop offset="1" stop-color="#1c4337"/></linearGradient>
         <linearGradient id="wd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d79a5c"/><stop offset="1" stop-color="#a86d38"/></linearGradient>
         <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f7c58f"/><stop offset="1" stop-color="#e6a463"/></linearGradient>
       </defs>
-      <rect x="20" y="20" width="660" height="300" rx="10" fill="#7a4f2a"/>
-      <rect x="32" y="32" width="636" height="276" rx="4" fill="url(#bd)"/>
+      <rect class="bd" x="20" y="20" width="660" height="300" rx="10" fill="#7a4f2a"/>
+      <rect class="bd" x="32" y="32" width="636" height="276" rx="4" fill="url(#bd)"/>
       <g fill="none" stroke="#f6f4ec" stroke-width="3" stroke-linecap="round">
         <path class="chalk" style="--len:220" d="M70 66 h120 M70 88 h86"/>
         <path class="chalk" style="--len:140;animation-delay:.3s" d="M232 70 q30 -18 60 0 t60 0"/>
@@ -346,7 +400,7 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
         <g fill="#e8efe9"><rect x="22" y="44" width="156" height="18" rx="4"/><rect x="22" y="68" width="156" height="18" rx="4"/><rect x="22" y="92" width="156" height="18" rx="4"/></g>
         <rect x="22" y="44" width="110" height="18" rx="4" fill="#f4cf4a"/><rect x="22" y="68" width="72" height="18" rx="4" fill="#7fb59a"/><rect x="22" y="92" width="132" height="18" rx="4" fill="#e6a463"/>
       </g>
-      <ellipse cx="540" cy="334" rx="70" ry="8" fill="#00000035"/>
+      <ellipse class="bshadow" cx="540" cy="334" rx="70" ry="8" fill="#00000035"/>
       <ellipse class="bot2d" cx="540" cy="334" rx="70" ry="8" fill="#00000035"/><svg id="heroBot" x="438" y="110" width="204" height="226" viewBox="0 0 200 222" overflow="visible"></svg>
     </svg><canvas class="hero3d" id="hero3d" aria-hidden="true"></canvas></div>
   </div>
@@ -368,9 +422,9 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
       <span class="kick">每堂課的核心方法</span>
       <h2>從一句需求，到明天上課就能用</h2>
       <div class="steps">
-        <div class="st on" data-s="0"><h3>1. 把需求說清楚</h3><p>給誰用？什麼時候用？按下去會發生什麼？三個問題答清楚，AI 就做得好。</p></div>
-        <div class="st" data-s="1"><h3>2. AI 幫你寫出來</h3><p>不用學程式語言。一次只改一件事，改壞了就回上一版。</p></div>
-        <div class="st" data-s="2"><h3>3. 上課直接用</h3><p>得到一個連結，教室電腦打開就能投影，還能分享給同年段老師。</p></div>
+        <div class="st on" data-s="0"><h3><i class="n">1</i>把需求說清楚</h3><p>給誰用？什麼時候用？按下去會發生什麼？三個問題答清楚，AI 就做得好。</p></div>
+        <div class="st" data-s="1"><h3><i class="n">2</i>AI 幫你寫出來</h3><p>不用學程式語言。一次只改一件事，改壞了就回上一版。</p></div>
+        <div class="st" data-s="2"><h3><i class="n">3</i>上課直接用</h3><p>得到一個連結，教室電腦打開就能投影，還能分享給同年段老師。</p></div>
       </div>
     </div>
     <div class="device" id="dev"><div class="screen">
@@ -1283,7 +1337,7 @@ window.ICAN3D = (function () {
   function hero(canvas) {
     const v = view(canvas, { fov: 26 });
     v.cam.position.set(0, 1.5, 8); v.cam.lookAt(0, 1.2, 0);
-    const rb = robot("legs"); rb.group.rotation.y = -.25; v.sc.add(rb.group);
+    const rb = robot("legs"); rb.group.rotation.y = -.25; v.sc.add(rb.group); rb.group.children.forEach(m => { if (m.geometry && m.geometry.type === "PlaneGeometry") m.visible = false; });
     let nextWave = 4;
     v.update = (dt, t) => {
       if (!RM) {
@@ -1435,8 +1489,9 @@ const icon=()=>`<svg aria-hidden="true"><use href="#ai"/></svg>`;
 const rail=document.getElementById("rail");
 const LV=["","體驗","入門","應用","進階","挑戰"];
 const spark=n=>`<span class="lv" role="img" aria-label="${LV[n]}，等級 ${n}">${[1,2,3,4,5].map(i=>`<svg class="${i<=n?"f":"e"}"><use href="#ai"/></svg>`).join("")}</span>`;
-function renderCourses(f){rail.innerHTML=C.filter(c=>f==="all"||c[0]===+f).map(c=>`<button class="flip" type="button" aria-label="我也可以${esc(c[1])}，${LV[c[0]]}，點一下翻面看流程"><div class="fi"><div class="face front" style="background:linear-gradient(150deg,${c[3]},color-mix(in srgb,${c[3]} 60%,#000))">${icon()}${spark(c[0])}<span class="hint">翻面</span><h3>我也可以<br>${esc(c[1])}</h3><span class="take">帶走：${esc(c[2])}</span></div><div class="face back"><h3>上課流程</h3><ol>${c[4].map(x=>`<li>${esc(x)}</li>`).join("")}</ol><div class="meta"><span>${LV[c[0]]}</span><span>3 小時</span></div></div></div></button>`).join("");rail.scrollLeft=0;}
+function renderCourses(f){rail.innerHTML=C.filter(c=>f==="all"||c[0]===+f).map(c=>`<button class="flip" type="button" style="--c:${c[3]}" aria-label="我也可以${esc(c[1])}，${LV[c[0]]}，點一下翻面看流程"><div class="fi"><div class="face front" style="background:linear-gradient(150deg,${c[3]},color-mix(in srgb,${c[3]} 60%,#000))">${icon()}${spark(c[0])}<span class="hint">翻面</span><h3>我也可以<br>${esc(c[1])}</h3><span class="take">帶走：${esc(c[2])}</span></div><div class="face back"><h3>上課流程</h3><ol>${c[4].map(x=>`<li>${esc(x)}</li>`).join("")}</ol><div class="meta"><span>${LV[c[0]]}</span><span>3 小時</span></div></div></div></button>`).join("");rail.scrollLeft=0;}
 renderCourses("all");
+if(!RM&&matchMedia("(hover:hover)").matches){rail.addEventListener("pointermove",e=>{const b=e.target.closest(".flip");if(!b)return;const r=b.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;b.style.setProperty("--ry",((x-.5)*14).toFixed(1)+"deg");b.style.setProperty("--rx",((.5-y)*12).toFixed(1)+"deg");b.style.setProperty("--mx",(x*100).toFixed(0)+"%");b.style.setProperty("--my",(y*100).toFixed(0)+"%");});rail.addEventListener("pointerout",e=>{const b=e.target.closest(".flip");if(b&&!b.contains(e.relatedTarget)){b.style.setProperty("--rx","0deg");b.style.setProperty("--ry","0deg");}});}
 rail.addEventListener("click",e=>{const b=e.target.closest(".flip");if(b)b.classList.toggle("on");});
 for(const b of document.querySelectorAll(".tab[data-f]"))b.addEventListener("click",()=>{for(const x of document.querySelectorAll(".tab[data-f]"))x.setAttribute("aria-pressed",x===b?"true":"false");renderCourses(b.dataset.f);});
 const step=d=>rail.scrollBy({left:d*(rail.querySelector(".flip")?.offsetWidth+18||300),behavior:RM?"auto":"smooth"});
