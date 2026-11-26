@@ -315,6 +315,8 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
 @keyframes pulse{0%,100%{box-shadow:0 0 6px rgba(244,207,74,.45),0 0 0 rgba(47,211,160,0)}50%{box-shadow:0 0 16px rgba(244,207,74,.85),0 0 30px rgba(47,211,160,.45)}}
 /* 3. 研習翻牌卡：暗底霓虹 + 3D 傾斜 + 流動光框 */
 .flip{position:relative}
+/* 翻轉中的卡面會因透視投影超出按鈕外框；讓內層不吃滑鼠，只有固定的按鈕框算「停在卡片上」 */
+.fi,.fi *{pointer-events:none}
 /* 傾斜與翻面都作用在內層 .fi：外層按鈕的感應範圍固定不動，翻到側面時滑鼠不會「掉出去」造成來回翻 */
 .fi{transform:rotateX(var(--rx,0deg)) rotateY(calc(var(--ry,0deg) + var(--fl,0deg)))!important;transition:transform .7s cubic-bezier(.2,.8,.2,1)}
 .flip.on{--fl:180deg}
