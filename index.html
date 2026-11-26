@@ -201,7 +201,7 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
 .bbar i{width:10px;height:10px;border-radius:50%;background:#c9c3b5}
 .bbar span{margin-left:10px;font-size:12px;color:#5a625e;background:#fff;border-radius:6px;padding:1px 10px}
 .slots{padding:10px;display:grid;gap:8px}
-.slots>*{border-radius:6px;opacity:0;transform:translateY(-40px) scale(.9);transition:.5s cubic-bezier(.3,1.5,.5,1)}
+.slots>*{border-radius:6px;opacity:0;transform:var(--from,translateY(-40px)) scale(.9);transition:.55s cubic-bezier(.3,1.5,.5,1)}
 .slots>.on{opacity:1;transform:none}
 .pn{height:16px;background:#143229}
 .ph{height:clamp(50px,9vh,90px);background:linear-gradient(90deg,#1f4a3d 55%,#2f6754);position:relative}
@@ -209,17 +209,23 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
 .pc{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:none}
 .pc span{height:clamp(36px,7vh,64px);border-radius:6px}
 .pb{height:clamp(24px,4vh,36px);background:linear-gradient(90deg,#2f8a6a,#3a6ea5,#d9a43a)}
-.bot{position:absolute;bottom:0;left:0;width:clamp(96px,14vw,140px);transform:translateX(var(--x,-160px));transition:transform .9s ease-in-out}
+.bot{position:absolute;left:0;top:0;width:clamp(96px,14vw,140px);transform:translate(var(--x,-200px),var(--y,0px)) scaleX(var(--sx,1));z-index:2}
 .bot svg{width:100%;display:block;overflow:visible}
 .bot .lg{transform-box:fill-box;transform-origin:50% 0}
-.bot.walk .l1{animation:stepA .3s ease-in-out infinite alternate}
-.bot.walk .l2{animation:stepA .3s ease-in-out infinite alternate-reverse}
+.bot.walk .l1{animation:stepA .28s ease-in-out infinite alternate}
+.bot.walk .l2{animation:stepA .28s ease-in-out infinite alternate-reverse}
 @keyframes stepA{from{transform:translateY(0)}to{transform:translateY(-9px)}}
-.bot.hop{animation:hop .45s ease}
-@keyframes hop{50%{transform:translateX(var(--x)) translateY(-26px)}}
+.bot.hop svg{animation:hop .42s ease}
+@keyframes hop{50%{transform:translateY(-24px)}}
+.bot.fly .lg{animation:dangle .5s ease-in-out infinite alternate}
+@keyframes dangle{from{transform:rotate(-8deg)}to{transform:rotate(8deg)}}
+.bot.fly .ant{animation:pulse .3s ease-in-out infinite}
 .bot .armR{transform-box:fill-box;transform-origin:8% 50%}
 .bot.wave .armR{animation:wave .35s ease-in-out 4 alternate}
 @keyframes wave{to{transform:rotate(-55deg)}}
+.trail{position:absolute;width:6px;border-radius:3px;background:linear-gradient(#f4cf4a,transparent);opacity:0;transition:opacity .3s;left:50%;margin-left:-3px}
+.bot.fly .trail.up{opacity:.9;top:100%;height:40px}
+.bot.rise .trail.up{opacity:.9;top:100%;height:30px}
 .carry{position:absolute;left:18%;top:-26%;width:64%;height:22%;border-radius:6px;opacity:0;transition:opacity .2s}
 .carry.on{opacity:1}
 .ibottom{display:grid;gap:10px;justify-items:center}
@@ -273,9 +279,9 @@ footer .wrap{display:flex;gap:20px;flex-wrap:wrap;justify-content:space-between}
     <div class="ihead"><svg aria-hidden="true"><use href="#ai"/></svg><span>Claude 正在製作這個網頁</span></div>
     <div class="stage" id="stage">
       <div class="browser"><div class="bbar"><i></i><i></i><i></i><span>I.C.A.N. 我也可以</span></div>
-        <div class="slots"><div class="pn"></div><div class="ph"></div><div class="pc"><span style="background:#1f4a3d"></span><span style="background:#b5653a"></span><span style="background:#3a6ea5"></span><span style="background:#7b4ea3"></span></div><div class="pb"></div></div>
+        <div class="slots"><div class="pn" style="--from:translateX(-80px)"></div><div class="ph" style="--from:translateY(-70px)"></div><div class="pc" style="--from:translateX(80px)"><span style="background:#1f4a3d"></span><span style="background:#b5653a"></span><span style="background:#3a6ea5"></span><span style="background:#7b4ea3"></span></div><div class="pb" style="--from:translateY(70px)"></div></div>
       </div>
-      <div class="bot" id="ibot"><svg viewBox="0 0 200 222" aria-hidden="true" id="ibotsvg"></svg><div class="carry" id="carry"></div></div>
+      <div class="bot" id="ibot"><svg viewBox="0 0 200 222" aria-hidden="true" id="ibotsvg"></svg><div class="carry" id="carry"></div><div class="trail up"></div></div>
     </div>
     <div class="ibottom"><div class="isteps" id="ist"><div><i>✓</i>讀懂需求</div><div><i>✓</i>設計版面</div><div><i>✓</i>寫程式與互動</div><div><i>✓</i>檢查手機版</div></div><div class="iline" id="iline">讀取需求：AI 研習與校園工具的商業網站</div></div>
   </div>
@@ -588,24 +594,36 @@ else{
  document.getElementById("skip").addEventListener("click",finishIntro);
  const bot=document.getElementById("ibot"),stage=document.getElementById("stage"),carry=document.getElementById("carry");
  const st=[...document.querySelectorAll("#ist div")],sl=[...document.querySelectorAll(".slots>*")],line=document.getElementById("iline");
- const cols=["#143229","#2f6754","linear-gradient(90deg,#1f4a3d,#b5653a,#3a6ea5,#7b4ea3)","linear-gradient(90deg,#2f8a6a,#3a6ea5,#d9a43a)"];
- const txt=["&lt;nav&gt; 玻璃導覽列","黑板首頁與機器人插圖","14 張翻牌卡、5 個等級","捲動動畫與手機版"];
- const W=()=>stage.clientWidth,bw=()=>bot.clientWidth;
- const go=x=>{bot.style.setProperty("--x",x+"px");};
- const walk=(x,ms)=>{bot.classList.add("walk");go(x);at(ms,()=>bot.classList.remove("walk"));};
- at(50,()=>walk(Math.max(4,W()*.04),900));
- at(700,()=>st[0].classList.add("on"));
- let t=1000;
- sl.forEach((el,k)=>{
-  at(t,()=>{carry.style.background=cols[k];carry.classList.add("on");line.innerHTML=txt[k];if(k===1)st[1].classList.add("on");if(k===2)st[2].classList.add("on");});
-  at(t+60,()=>walk(W()*(.34+k*.13)-bw()*.3,600));
-  at(t+680,()=>{bot.classList.remove("hop");void bot.offsetWidth;bot.classList.add("hop");carry.classList.remove("on");el.classList.add("on");});
-  if(k<3)at(t+900,()=>walk(Math.max(4,W()*.04),500));
-  t+=1100;
- });
- at(t-100,()=>{st[3].classList.add("on");line.textContent="完成！歡迎來到 I.C.A.N. 我也可以";walk(W()*.5-bw()/2,700);});
- at(t+650,()=>{bot.classList.add("wave");document.getElementById("ibmouth").setAttribute("d","M86 104 q14 16 28 0");});
- at(t+1800,finishIntro);
+ const cols=["#143229","linear-gradient(90deg,#1f4a3d,#2f6754)","linear-gradient(90deg,#1f4a3d,#b5653a,#3a6ea5,#7b4ea3)","linear-gradient(90deg,#2f8a6a,#3a6ea5,#d9a43a)"];
+ const txt=["從左邊走進來：玻璃導覽列","從天而降：黑板首頁與機器人插圖","從右邊跑進來：14 張翻牌卡","從下面冒出來：捲動動畫與手機版"];
+ const R=el=>{const a=el.getBoundingClientRect(),b=stage.getBoundingClientRect();return{x:a.left-b.left,y:a.top-b.top,w:a.width,h:a.height};};
+ const S=()=>({W:stage.clientWidth,H:stage.clientHeight,bw:bot.offsetWidth,bh:bot.offsetHeight});
+ const move=(x,y,sx,ms,ease)=>{bot.style.transition=ms?`transform ${ms}ms ${ease||"cubic-bezier(.45,.05,.3,1)"}`:"none";bot.style.setProperty("--x",x+"px");bot.style.setProperty("--y",y+"px");bot.style.setProperty("--sx",sx);if(!ms)void bot.offsetWidth;};
+ const mode=m=>{bot.classList.remove("walk","fly","rise");if(m)bot.classList.add(m);};
+ const drop=k=>{bot.classList.remove("hop");void bot.offsetWidth;bot.classList.add("hop");carry.classList.remove("on");sl[k].classList.add("on");st[k].classList.add("on");};
+ const hold=k=>{carry.style.background=cols[k];carry.classList.add("on");line.textContent=txt[k];};
+ // 1 left: walk in
+ at(30,()=>{const{bw,bh}=S(),r=R(sl[0]);move(-bw-30,r.y+r.h+8-bh*.25,1,0);hold(0);});
+ at(80,()=>{const{bh}=S(),r=R(sl[0]);mode("walk");move(r.x+r.w*.18,r.y+r.h+8-bh*.25,1,900);});
+ at(1000,()=>{mode();drop(0);});
+ // 2 top: fall from the sky
+ at(1250,()=>{const{bh}=S(),r=R(sl[1]);move(r.x+r.w*.42,-bh-60,1,0);hold(1);mode("fly");});
+ at(1300,()=>{const{bh}=S(),r=R(sl[1]);move(r.x+r.w*.42,r.y+r.h-bh*.35,1,650,"cubic-bezier(.3,1.35,.6,1)");});
+ at(2000,()=>{mode();drop(1);});
+ at(2200,()=>{const{bh}=S(),r=R(sl[1]);mode("fly");move(r.x+r.w*.42,-bh-60,1,500,"ease-in");});
+ // 3 right: run in from the right, facing left
+ at(2750,()=>{const{W,bh}=S(),r=R(sl[2]);mode();move(W+30,r.y+r.h-bh*.3,-1,0);hold(2);});
+ at(2800,()=>{const{bh,bw}=S(),r=R(sl[2]);mode("walk");move(r.x+r.w*.62-bw/2,r.y+r.h-bh*.3,-1,800);});
+ at(3650,()=>{mode();drop(2);});
+ at(3850,()=>{const{W,bh}=S(),r=R(sl[2]);mode("walk");move(W+30,r.y+r.h-bh*.3,-1,550,"ease-in");});
+ // 4 bottom: rise from below
+ at(4450,()=>{const{H,bw}=S(),r=R(sl[3]);mode();move(r.x+r.w*.3-bw/2,H+40,1,0);hold(3);});
+ at(4500,()=>{const{bh,bw}=S(),r=R(sl[3]);mode("rise");move(r.x+r.w*.3-bw/2,r.y+r.h-bh*.2,1,650,"cubic-bezier(.3,1.35,.6,1)");});
+ at(5200,()=>{mode();drop(3);line.textContent="完成！歡迎來到 I.C.A.N. 我也可以";});
+ // finale: centre stage and wave
+ at(5450,()=>{const{W,H,bw,bh}=S();mode("walk");move(W/2-bw/2,H-bh,1,600);});
+ at(6100,()=>{mode();bot.classList.add("wave");document.getElementById("ibmouth").setAttribute("d","M86 104 q14 16 28 0");});
+ at(7300,finishIntro);
 }
 
 /* typed word */
