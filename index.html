@@ -495,32 +495,34 @@ window.ICAN3D = (function () {
   function rr(x, a, b, w, h, r) { r = Math.min(r, h / 2, w / 2); x.beginPath(); x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r); x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath(); }
 
   function faceTex() {
-    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const c = document.createElement("canvas"); c.width = 512; c.height = 384;
     const x = c.getContext("2d"), tex = new T.CanvasTexture(c);
-    const st = { mode: "n", ex: 0, ey: 0, blink: 0 };
+    const st = { mode: "n", ex: 0, ey: 0, blink: 0, cur: 1 };
     function draw() {
-      x.clearRect(0, 0, 256, 256);
-      const g = x.createRadialGradient(110, 90, 10, 128, 128, 130); g.addColorStop(0, "#202a38"); g.addColorStop(1, "#05070a");
-      x.fillStyle = g; x.beginPath(); x.arc(128, 128, 128, 0, 7); x.fill();
-      x.save(); x.translate(st.ex * 24, st.ey * 16);
-      x.shadowColor = "#7ff3ff"; x.shadowBlur = 24; x.fillStyle = "#dcfbff"; x.strokeStyle = "#dcfbff"; x.lineCap = "round";
-      const h = st.blink ? 7 : 50;
-      for (const cx of [86, 170]) {
-        if (st.mode === "h") { x.lineWidth = 14; x.beginPath(); x.arc(cx, 132, 24, Math.PI * 1.12, Math.PI * 1.88); x.stroke(); }
-        else { rr(x, cx - 16, 116 - h / 2, 32, h, 16); x.fill(); }
+      x.clearRect(0, 0, 512, 384);
+      x.save(); x.translate(st.ex * 30, st.ey * 20);
+      x.strokeStyle = "#3a2418"; x.fillStyle = "#3a2418"; x.lineCap = "round";
+      const think = st.mode === "t";
+      for (const cx of [196, 316]) {
+        if (st.mode === "h") { x.lineWidth = 20; x.beginPath(); x.arc(cx, 196, 26, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); }
+        else { x.lineWidth = 22; const h = st.blink ? 2 : 34; const oy = think ? -18 : 0; x.beginPath(); x.moveTo(cx + (think ? -10 : 0), 180 - h + oy); x.lineTo(cx + (think ? -10 : 0), 180 + h + oy); x.stroke(); }
       }
-      x.shadowColor = "#ffcf4a"; x.strokeStyle = "#ffd65a"; x.lineWidth = 7;
-      x.beginPath(); x.arc(128, 158, st.mode === "h" ? 22 : 13, Math.PI * .15, Math.PI * .85); x.stroke();
+      if (think) { for (let i = 0; i < 3; i++) { x.beginPath(); x.arc(226 + i * 30, 282, 9, 0, 7); x.fill(); } }
+      else if (st.cur) { x.fillStyle = "#3a2418"; x.fillRect(st.mode === "h" ? 238 : 246, 262, st.mode === "h" ? 36 : 18, st.mode === "h" ? 12 : 46); }
       x.restore();
-      // glass highlight
-      const hl = x.createLinearGradient(40, 30, 120, 140); hl.addColorStop(0, "rgba(255,255,255,.16)"); hl.addColorStop(1, "rgba(255,255,255,0)");
-      x.fillStyle = hl; x.beginPath(); x.ellipse(96, 78, 70, 38, -.6, 0, 7); x.fill();
       tex.needsUpdate = true;
     }
     draw();
     return { tex, st, draw };
   }
-
+  function chestTex() {
+    const c = document.createElement("canvas"); c.width = 256; c.height = 256;
+    const x = c.getContext("2d");
+    x.fillStyle = "#f3efe6"; x.fillRect(0, 0, 256, 256);
+    x.fillStyle = "#c9b8a6";
+    for (let i = 0; i < 9; i++) { const w = 120 + ((i * 53) % 90); x.fillRect(28, 18 + i * 28, w, 10); }
+    const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.repeat.set(1, .5); return t;
+  }
   function starGeo(s) {
     const sh = new T.Shape(), p = [[0, 1], [.2, .2], [1, 0], [.2, -.2], [0, -1], [-.2, -.2], [-1, 0], [-.2, .2]];
     sh.moveTo(p[0][0] * s, p[0][1] * s); for (let i = 1; i < p.length; i++) sh.lineTo(p[i][0] * s, p[i][1] * s); sh.closePath();
@@ -541,74 +543,91 @@ window.ICAN3D = (function () {
     m.rotation.x = -Math.PI / 2; m.position.y = .01; return m;
   }
 
+  function bubbleGeo() {
+    const w = 1.9, h = 1.4, r = .62, sh = new T.Shape();
+    sh.moveTo(-w / 2 + r, -h / 2);
+    sh.lineTo(w / 2 - r, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
+    sh.lineTo(w / 2, h / 2 - r); sh.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
+    sh.lineTo(-w / 2 + r, h / 2); sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
+    sh.lineTo(-w / 2, -h / 2 + r); sh.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
+    const g = new T.ExtrudeGeometry(sh, { depth: .62, bevelEnabled: true, bevelThickness: .2, bevelSize: .2, bevelSegments: 10, curveSegments: 28 });
+    g.translate(0, 0, -.31); return g;
+  }
+  function pencil() {
+    const g = new T.Group();
+    const body = new T.Mesh(new T.CylinderGeometry(.06, .06, .62, 6), M(0xf4cf4a, { roughness: .5 })); g.add(body);
+    const wood = new T.Mesh(new T.ConeGeometry(.06, .14, 6), M(0xe8c39a, { roughness: .7 })); wood.position.y = -.38; wood.rotation.x = Math.PI; g.add(wood);
+    const lead = new T.Mesh(new T.ConeGeometry(.022, .05, 6), M(0x3a2418)); lead.position.y = -.47; lead.rotation.x = Math.PI; g.add(lead);
+    const band = new T.Mesh(new T.CylinderGeometry(.064, .064, .05, 12), MAT.silver); band.position.y = .33; g.add(band);
+    const er = new T.Mesh(new T.CylinderGeometry(.06, .06, .08, 12), M(0xf29aa8, { roughness: .8 })); er.position.y = .39; g.add(er);
+    return g;
+  }
   function robot(variant) {
     const R = new T.Group(), P = { variant };
     const body = new T.Group(); R.add(body); P.body = body;
-    const head = new T.Group(); head.position.y = 1.62; body.add(head); P.head = head;
-    const skull = new T.Mesh(new T.SphereGeometry(.9, 48, 32), MAT.shell); skull.scale.set(1, .88, .8); head.add(skull);
+    // head: a speech bubble
+    const head = new T.Group(); head.position.y = 1.78; body.add(head); P.head = head;
+    head.add(new T.Mesh(bubbleGeo(), MAT.shell));
+    const tail = new T.Mesh(new T.ConeGeometry(.2, .5, 24), MAT.shell); tail.scale.z = .75; tail.position.set(-.62, -.86, .05); tail.rotation.z = -2.45; head.add(tail);
     const ft = faceTex(); P.face = ft;
-    const face = new T.Mesh(new T.CircleGeometry(.6, 48), new T.MeshBasicMaterial({ map: ft.tex })); face.position.z = .735; head.add(face);
-    const bez = new T.Mesh(new T.TorusGeometry(.62, .045, 16, 64), MAT.acc); bez.position.z = .735; head.add(bez);
+    const face = new T.Mesh(new T.PlaneGeometry(1.6, 1.2), new T.MeshBasicMaterial({ map: ft.tex, transparent: true })); face.position.z = .52; head.add(face);
+    const stem = new T.Mesh(new T.CylinderGeometry(.035, .035, .28, 12), MAT.shell2); stem.position.y = .86; head.add(stem);
+    const star = new T.Mesh(starGeo(.17), MAT.star); star.position.y = 1.08; head.add(star); P.star = star;
+    // body: a soft clay egg with a little page on the chest
+    const torso = new T.Mesh(new T.SphereGeometry(.6, 40, 28), MAT.shell2); torso.scale.set(1, .86, .82); torso.position.y = .66; body.add(torso);
+    const ct = chestTex(); P.chest = ct;
+    const panel = new T.Mesh(new T.PlaneGeometry(.5, .36), new T.MeshStandardMaterial({ map: ct, roughness: .8 })); panel.position.set(0, .7, .49); panel.rotation.x = -.08; body.add(panel);
     for (const s of [-1, 1]) {
-      const ear = new T.Mesh(new T.CylinderGeometry(.27, .27, .22, 32), MAT.shell2); ear.rotation.z = Math.PI / 2; ear.position.set(s * .9, 0, 0); head.add(ear);
-      const cap = new T.Mesh(new T.CylinderGeometry(.18, .18, .04, 32), MAT.silver); cap.rotation.z = Math.PI / 2; cap.position.set(s * 1.02, 0, 0); head.add(cap);
-      const ring = new T.Mesh(new T.TorusGeometry(.22, .035, 12, 40), MAT.acc); ring.rotation.y = Math.PI / 2; ring.position.set(s * 1.012, 0, 0); head.add(ring);
-    }
-    const stem = new T.Mesh(new T.CylinderGeometry(.03, .03, .34, 12), MAT.silver); stem.position.y = .9; head.add(stem);
-    const star = new T.Mesh(starGeo(.17), MAT.star); star.position.y = 1.13; head.add(star); P.star = star;
-
-    const torso = new T.Mesh(new T.CylinderGeometry(.42, .5, .62, 40), MAT.shell); torso.position.y = .86; body.add(torso);
-    const belt = new T.Mesh(new T.TorusGeometry(.43, .035, 12, 48), MAT.acc); belt.rotation.x = Math.PI / 2; belt.position.y = 1.12; body.add(belt);
-    const badge = new T.Mesh(new T.CircleGeometry(.08, 24), MAT.star); badge.position.set(0, .9, .475); badge.rotation.x = -.13; body.add(badge);
-    for (const s of [-1, 1]) {
-      const sh = new T.Group(); sh.position.set(s * .53, 1.02, 0); body.add(sh);
-      sh.add(new T.Mesh(new T.SphereGeometry(.12, 20, 14), MAT.silver));
-      const arm = capsule(.1, .3, MAT.shell); arm.position.y = -.25; sh.add(arm);
-      const hand = new T.Mesh(new T.SphereGeometry(.12, 20, 14), MAT.acc); hand.position.y = -.47; sh.add(hand);
-      sh.rotation.z = s * .16; P[s < 0 ? "armL" : "armR"] = sh;
+      const sh = new T.Group(); sh.position.set(s * .56, .84, .02); body.add(sh);
+      const arm = capsule(.11, .22, MAT.shell); arm.position.y = -.2; sh.add(arm);
+      sh.rotation.z = s * .35; P[s < 0 ? "armL" : "armR"] = sh;
+      if (s > 0) { const p = pencil(); p.position.set(.02, -.4, .1); p.rotation.x = -.5; sh.add(p); }
     }
     if (variant === "wheels") {
       for (const s of [-1, 1]) {
-        const w = new T.Group(); w.position.set(s * .64, .42, 0); body.add(w);
-        const tire = new T.Mesh(new T.TorusGeometry(.3, .12, 16, 40), MAT.shell2); tire.rotation.y = Math.PI / 2; w.add(tire);
-        const hub = new T.Mesh(new T.CylinderGeometry(.2, .2, .17, 32), MAT.acc); hub.rotation.z = Math.PI / 2; w.add(hub);
+        const w = new T.Group(); w.position.set(s * .58, .3, 0); body.add(w);
+        const tire = new T.Mesh(new T.TorusGeometry(.2, .1, 16, 36), MAT.shell2); tire.rotation.y = Math.PI / 2; w.add(tire);
+        const hub = new T.Mesh(new T.CylinderGeometry(.14, .14, .14, 28), MAT.acc); hub.rotation.z = Math.PI / 2; w.add(hub);
         P[s < 0 ? "wl" : "wr"] = w;
       }
-      const ax = new T.Mesh(new T.CylinderGeometry(.06, .06, 1.2, 12), MAT.silver); ax.rotation.z = Math.PI / 2; ax.position.y = .42; body.add(ax);
     } else if (variant === "stand") {
-      const neck = new T.Mesh(new T.CylinderGeometry(.16, .2, .2, 24), MAT.shell2); neck.position.y = .48; body.add(neck);
-      const base = new T.Mesh(new T.CylinderGeometry(.72, .8, .36, 48), MAT.acc); base.position.y = .2; body.add(base);
-      const top = new T.Mesh(new T.CylinderGeometry(.66, .72, .04, 48), MAT.shell2); top.position.y = .4; body.add(top);
+      const base = new T.Mesh(new T.CylinderGeometry(.62, .7, .22, 48), MAT.acc); base.position.y = .11; body.add(base);
     } else {
       for (const s of [-1, 1]) {
-        const hip = new T.Group(); hip.position.set(s * .22, .58, 0); body.add(hip);
-        hip.add(new T.Mesh(new T.SphereGeometry(.12, 20, 14), MAT.silver));
-        const leg = capsule(.13, .18, MAT.shell); leg.position.y = -.17; hip.add(leg);
-        const foot = new T.Mesh(new T.BoxGeometry(.34, .14, .5), MAT.shell2); foot.position.set(0, -.44, .07); hip.add(foot);
-        const sole = new T.Mesh(new T.BoxGeometry(.35, .04, .51), MAT.acc); sole.position.set(0, -.52, .07); hip.add(sole);
-        P[s < 0 ? "legL" : "legR"] = hip;
+        const f = new T.Group(); f.position.set(s * .27, .11, .06); body.add(f);
+        const shoe = new T.Mesh(new T.SphereGeometry(1, 28, 18), MAT.acc); shoe.scale.set(.22, .12, .3); f.add(shoe);
+        P[s < 0 ? "legL" : "legR"] = f;
       }
+      P.feet = true;
     }
-    R.add(shadow(variant === "wheels" ? 1.2 : 1));
-    P.next = 2 + Math.random() * 2; P.wave = 0; P.happy = 0; P.walk = 0;
+    R.add(shadow(variant === "wheels" ? 1.05 : .95));
+    P.next = 2 + Math.random() * 2; P.wave = 0; P.happy = 0; P.walk = 0; P.think = 0; P.curT = 0;
     return { group: R, P };
   }
 
   // per-frame body language: blink, wave, walk, star spin, expression
   function animate(rb, dt, t) {
     const P = rb.P, f = P.face;
-    if (t > P.next) { f.st.blink = 1; f.draw(); P.next = t + 3 + Math.random() * 2.5; setTimeout(() => { f.st.blink = 0; f.draw(); }, 130); }
-    const happy = P.happy > 0; if (happy !== (f.st.mode === "h")) { f.st.mode = happy ? "h" : "n"; f.draw(); }
-    if (P.happy > 0) P.happy -= dt;
-    P.star.rotation.y += dt * (P.happy > 0 ? 6 : 1.2);
-    if (P.wave > 0) { P.wave -= dt; P.armR.rotation.z = lerp(P.armR.rotation.z, 2.3 + Math.sin(t * 14) * .45, .3); }
-    else if (P.reach == null) P.armR.rotation.z = lerp(P.armR.rotation.z, .16, .15);
+    let dirty = false;
+    if (t > P.next) { f.st.blink = 1; dirty = true; P.next = t + 3 + Math.random() * 2.5; setTimeout(() => { f.st.blink = 0; f.draw(); }, 130); }
+    const mode = P.happy > 0 ? "h" : P.think > 0 ? "t" : "n";
+    if (mode !== f.st.mode) { f.st.mode = mode; dirty = true; }
+    if (P.happy > 0) P.happy -= dt; if (P.think > 0) P.think -= dt;
+    P.curT += dt; if (P.curT > .5) { P.curT = 0; f.st.cur = f.st.cur ? 0 : 1; dirty = true; }
+    if (dirty) f.draw();
+    P.chest.offset.y -= dt * .12;
+    P.star.rotation.y += dt * (P.happy > 0 ? 6 : P.think > 0 ? 4 : 1.1);
+    P.star.scale.setScalar(P.think > 0 ? 1 + Math.sin(t * 8) * .12 : 1);
+    if (P.wave > 0) { P.wave -= dt; P.armR.rotation.z = lerp(P.armR.rotation.z, 2.2 + Math.sin(t * 14) * .45, .3); }
+    else if (P.reach == null) P.armR.rotation.z = lerp(P.armR.rotation.z, .35, .15);
     if (P.reach != null) { for (const a of [P.armL, P.armR]) a.rotation.x = lerp(a.rotation.x, P.reach, .2); }
-    else for (const a of [P.armL, P.armR]) a.rotation.x = lerp(a.rotation.x, P.walk ? Math.sin(t * 13 + (a === P.armL ? 0 : Math.PI)) * .5 : 0, .2);
-    if (P.legL) {
-      const sw = P.walk ? Math.sin(t * 13) * .55 : 0;
-      P.legL.rotation.x = lerp(P.legL.rotation.x, sw, .3); P.legR.rotation.x = lerp(P.legR.rotation.x, -sw, .3);
-      P.body.position.y = P.walk ? Math.abs(Math.sin(t * 13)) * .05 : lerp(P.body.position.y, Math.sin(t * 2) * .015, .1);
+    else for (const a of [P.armL, P.armR]) a.rotation.x = lerp(a.rotation.x, P.walk ? Math.sin(t * 12 + (a === P.armL ? 0 : Math.PI)) * .45 : (a === P.armR ? Math.sin(t * 6) * .08 : 0), .2);
+    if (P.feet) {
+      const ph = t * 12, up = P.walk ? .1 : 0;
+      P.legL.position.y = lerp(P.legL.position.y, .11 + Math.max(0, Math.sin(ph)) * up, .4); P.legL.position.z = lerp(P.legL.position.z, .06 + (P.walk ? Math.cos(ph) * .1 : 0), .4);
+      P.legR.position.y = lerp(P.legR.position.y, .11 + Math.max(0, -Math.sin(ph)) * up, .4); P.legR.position.z = lerp(P.legR.position.z, .06 - (P.walk ? Math.cos(ph) * .1 : 0), .4);
+      P.body.position.y = P.walk ? Math.abs(Math.sin(ph)) * .05 : lerp(P.body.position.y, Math.sin(t * 2) * .015, .1);
+      P.body.rotation.z = P.walk ? Math.sin(ph) * .06 : lerp(P.body.rotation.z, 0, .1);
     }
     if (P.wl) { const v = P.spin || 0; P.wl.rotation.x += v * dt; P.wr.rotation.x += v * dt; }
   }
@@ -674,8 +693,8 @@ window.ICAN3D = (function () {
     const order = [0, 2, 1, 3];   // left: nav, right: cards, sky: hero, below: bottom bar
     crew.forEach((c, i) => {
       const k = order[i], pc = pieces[k], rb = c.rb, P = rb.P, g = rb.group, o = .3 + i * .26;
-      const hands = () => g.localToWorld(V(0, 1.15, .95));
-      tw(o, .28, () => { const a = g.rotation.y, h = P.head.rotation.x; return p => { g.rotation.y = lerp(a, c.look[0], p); P.head.rotation.x = lerp(h, c.look[1], p); }; });
+      const hands = () => g.localToWorld(V(0, 1.0, 1.0));
+      tw(o, .28, () => { P.think = .7; const a = g.rotation.y, h = P.head.rotation.x; return p => { g.rotation.y = lerp(a, c.look[0], p); P.head.rotation.x = lerp(h, c.look[1], p); }; });
       tw(o + .08, .42, () => { pc.visible = true; pc.position.set(...c.src); pc.scale.setScalar(.3); P.reach = c.reach; const a = pc.position.clone(); return p => { pc.position.lerpVectors(a, hands(), p); pc.rotation.z = (1 - p) * 2.5; pc.rotation.y = g.rotation.y; }; }, out);
       tw(o + .52, .3, () => { const a = g.rotation.y, h = P.head.rotation.x, p0 = g.position.clone(); const tp = Math.atan2(panel.position.x - p0.x, panel.position.z - p0.z); const p1 = p0.clone().lerp(V(panel.position.x, 0, panel.position.z), .18); P.walk = 1; P.reach = -1.2; return p => { g.rotation.y = lerp(a, tp, p); P.head.rotation.x = lerp(h, -.1, p); g.position.lerpVectors(p0, p1, p); pc.position.copy(hands()); pc.rotation.y = g.rotation.y; if (p === 1) P.walk = 0; }; });
       tw(o + .82, .3, () => { const a = pc.position.clone(), s0 = pc.scale.x, r0 = pc.rotation.y; const t0 = panel.localToWorld(V(0, slotY[k], .1)); const y0 = g.position.y; return p => { pc.position.lerpVectors(a, t0, p); pc.position.y += Math.sin(p * Math.PI) * .5; pc.scale.setScalar(lerp(s0, 1, p)); pc.rotation.y = lerp(r0, 0, p); pc.rotation.z = 0; g.position.y = y0 + Math.sin(p * Math.PI) * .3; }; });
@@ -762,40 +781,22 @@ window.ICAN3D = (function () {
 </script>
 <script>
 window.ICANBOT=function(p,variant,o){o=o||{};
-const g=`<defs>
-<linearGradient id="${p}b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#e99a7d"/><stop offset=".55" stop-color="#d97757"/><stop offset="1" stop-color="#b5583a"/></linearGradient>
-<linearGradient id="${p}s" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#212a38"/><stop offset="1" stop-color="#0d1219"/></linearGradient>
-<linearGradient id="${p}l" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e99a7d"/><stop offset=".5" stop-color="#d97757"/><stop offset="1" stop-color="#b5583a"/></linearGradient>
-<linearGradient id="${p}f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c4654a"/><stop offset="1" stop-color="#9c4a30"/></linearGradient>
-<linearGradient id="${p}w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e9a868"/><stop offset="1" stop-color="#b9743a"/></linearGradient>
-<radialGradient id="${p}h" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#fbf8f2"/><stop offset="1" stop-color="#e6ddd0"/></radialGradient>
-<filter id="${p}g" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-<clipPath id="${p}c"><rect x="30" y="34" width="140" height="120" rx="28"/></clipPath>
-</defs>`;
-const hub=(x,y,r)=>`<circle cx="${x}" cy="${y}" r="${r}" fill="url(#${p}h)" stroke="#b5583a" stroke-width="1.2"/><circle cx="${x}" cy="${y}" r="${r*.28}" fill="#b5583a"/>`;
-const leg=(cls,x)=>`<g class="lg ${cls}"><rect x="${x-10}" y="152" width="20" height="38" rx="9" fill="url(#${p}l)"/>${hub(x,184,5)}<rect x="${x-23}" y="188" width="46" height="20" rx="10" fill="url(#${p}f)"/><rect x="${x-21}" y="203" width="42" height="5" rx="2.5" fill="#f3efe6"/><rect x="${x-17}" y="190" width="22" height="3" rx="1.5" fill="#fff" opacity=".35"/></g>`;
+const T="#d97757",D="#b5583a",C="#f3efe6",K="#3a2418";
 let lower="";
-if(variant==="wheels"){lower=`<rect x="86" y="150" width="28" height="14" rx="4" fill="#3b4250"/>`+[22,178].map(x=>`<g class="wh"><rect x="${x-13}" y="140" width="26" height="76" rx="13" fill="#262b33"/><rect x="${x-8}" y="148" width="16" height="60" rx="8" fill="#3a414d"/><rect x="${x-4}" y="160" width="8" height="36" rx="4" fill="url(#${p}h)"/></g>`).join("");}
-else if(variant==="stand"){lower=`<rect x="88" y="150" width="24" height="20" rx="4" fill="#3b4250"/><rect x="40" y="166" width="120" height="44" rx="16" fill="url(#${p}w)"/><rect x="48" y="170" width="104" height="5" rx="2.5" fill="#fff" opacity=".3"/>`+[0,1,2,3,4,5].map(i=>`<circle cx="${70+i*12}" cy="192" r="2.6" fill="#7a4a22" opacity=".55"/>`).join("");}
-else{lower=hub(72,152,7)+hub(128,152,7)+leg("l1",72)+leg("l2",128);}
-const shadow=o.noShadow?"":`<ellipse cx="100" cy="214" rx="${variant==="wheels"?92:62}" ry="6" fill="#000" opacity=".22"/>`;
-return g+shadow+lower+`
-<g class="arm armL"><rect x="2" y="112" width="30" height="14" rx="7" fill="url(#${p}l)"/>${hub(30,119,6)}</g>
-<g class="arm armR" id="${p}arm"><rect x="168" y="112" width="30" height="14" rx="7" fill="url(#${p}l)"/>${hub(170,119,6)}</g>
-<rect x="18" y="74" width="16" height="40" rx="7" fill="#b5583a"/><rect x="166" y="74" width="16" height="40" rx="7" fill="#b5583a"/>
-<g fill="#9a5f2c" opacity=".6"><rect x="22" y="84" width="8" height="2" rx="1"/><rect x="22" y="92" width="8" height="2" rx="1"/><rect x="22" y="100" width="8" height="2" rx="1"/><rect x="170" y="84" width="8" height="2" rx="1"/><rect x="170" y="92" width="8" height="2" rx="1"/><rect x="170" y="100" width="8" height="2" rx="1"/></g>
-<line x1="100" y1="36" x2="100" y2="18" stroke="#c98b4f" stroke-width="4" stroke-linecap="round"/>
-<g class="ant" filter="url(#${p}g)"><path d="M100 2C101 8.5 103.5 11 110 12C103.5 13 101 15.5 100 22C99 15.5 96.5 13 90 12C96.5 11 99 8.5 100 2Z" fill="#fff4dc"/></g>
-<rect x="30" y="34" width="140" height="120" rx="28" fill="url(#${p}b)"/>
-<g clip-path="url(#${p}c)"><rect x="140" y="30" width="40" height="130" fill="#7a3f12" opacity=".12"/><rect x="26" y="140" width="150" height="20" fill="#7a3f12" opacity=".1"/></g>
-<rect x="46" y="39" width="108" height="7" rx="3.5" fill="#fff" opacity=".45"/>
-<rect x="44" y="50" width="112" height="82" rx="18" fill="#161b24"/>
-<rect x="50" y="56" width="100" height="70" rx="13" fill="url(#${p}s)"/>
-<path d="M56 60 H92 L68 122 H56 Z" fill="#fff" opacity=".06"/>
-<g class="face" id="${p}face"><g class="eyes" id="${p}eyes" filter="url(#${p}g)"><rect x="72" y="74" width="14" height="25" rx="7" fill="#c9f7ff"/><rect x="114" y="74" width="14" height="25" rx="7" fill="#c9f7ff"/><circle cx="82" cy="79" r="2.4" fill="#fff"/><circle cx="124" cy="79" r="2.4" fill="#fff"/></g>
-<path id="${p}mouth" d="M88 108 q12 9 24 0" stroke="#ffd65a" stroke-width="4" fill="none" stroke-linecap="round" filter="url(#${p}g)"/></g>
-<ellipse cx="64" cy="112" rx="6" ry="3.5" fill="#ff8fa3" opacity=".55"/><ellipse cx="136" cy="112" rx="6" ry="3.5" fill="#ff8fa3" opacity=".55"/>
-<rect x="80" y="137" width="40" height="11" rx="5.5" fill="#fff" opacity=".55"/><text x="100" y="145.6" text-anchor="middle" font-size="7.5" font-weight="700" fill="#9c4a30" font-family="system-ui,sans-serif">I.C.A.N.</text>`;
+if(variant==="wheels")lower=[60,140].map(x=>`<g class="wh"><circle cx="${x}" cy="196" r="18" fill="${D}"/><circle cx="${x}" cy="196" r="8" fill="${C}"/></g>`).join("");
+else if(variant==="stand")lower=`<ellipse cx="100" cy="200" rx="62" ry="14" fill="${C}"/>`;
+else lower=`<g class="lg l1"><ellipse cx="78" cy="200" rx="20" ry="11" fill="${C}"/></g><g class="lg l2"><ellipse cx="122" cy="200" rx="20" ry="11" fill="${C}"/></g>`;
+return `${o.noShadow?"":`<ellipse cx="100" cy="212" rx="60" ry="6" fill="#000" opacity=".2"/>`}${lower}
+<g class="arm armL"><ellipse cx="46" cy="160" rx="11" ry="20" fill="${T}" transform="rotate(25 46 160)"/></g>
+<g class="arm armR" id="${p}arm"><ellipse cx="154" cy="160" rx="11" ry="20" fill="${T}" transform="rotate(-25 154 160)"/><g transform="rotate(-30 168 176)"><rect x="164" y="150" width="8" height="40" rx="2" fill="#f4cf4a"/><path d="M164 190 l4 10 l4 -10z" fill="#e8c39a"/><rect x="164" y="146" width="8" height="5" fill="#f29aa8"/></g></g>
+<ellipse cx="100" cy="160" rx="52" ry="42" fill="${D}"/>
+<rect x="80" y="150" width="40" height="26" rx="4" fill="${C}"/><g fill="#c9b8a6"><rect x="85" y="155" width="26" height="3" rx="1.5"/><rect x="85" y="162" width="20" height="3" rx="1.5"/><rect x="85" y="169" width="24" height="3" rx="1.5"/></g>
+<line x1="100" y1="34" x2="100" y2="16" stroke="${D}" stroke-width="4" stroke-linecap="round"/>
+<g class="ant"><path d="M100 2C101 8.5 103.5 11 110 12C103.5 13 101 15.5 100 22C99 15.5 96.5 13 90 12C96.5 11 99 8.5 100 2Z" fill="#fff4dc" stroke="#f2b27a" stroke-width="1"/></g>
+<path d="M58 30 H142 Q182 30 182 70 V88 Q182 128 142 128 H74 L36 148 L56 128 Q18 128 18 88 V70 Q18 30 58 30Z" fill="${T}"/>
+<path d="M58 36 H140 Q170 36 174 60" stroke="#fff" stroke-opacity=".35" stroke-width="5" fill="none" stroke-linecap="round"/>
+<g class="eyes" id="${p}eyes"><rect x="78" y="62" width="9" height="26" rx="4.5" fill="${K}"/><rect x="113" y="62" width="9" height="26" rx="4.5" fill="${K}"/></g>
+<path id="${p}mouth" d="M100 100 v14" stroke="${K}" stroke-width="6" stroke-linecap="round" fill="none"/>`;
 };
 </script>
 <script>
