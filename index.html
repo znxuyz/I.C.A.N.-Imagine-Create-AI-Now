@@ -782,280 +782,287 @@ window.ICAN3D = (function () {
   requestAnimationFrame(loop);
 
 
-  /* ===================== abstract states (with genesis: point → line → surface) ===================== */
+  /* ===================== abstract states v3: what an LLM is made of ===================== */
   const LOW = innerWidth < 700;
   const cl = (x, a, b) => Math.min(1, Math.max(0, (x - a) / (b - a)));
   const back = p => { const c = 1.9; return 1 + (c + 1) * Math.pow(p - 1, 3) + c * Math.pow(p - 1, 2); };
-  const elastic = p => p === 0 || p === 1 ? p : Math.pow(2, -10 * p) * Math.sin((p * 10 - .75) * (2 * Math.PI / 3)) + 1;
-  function dotTex() {
-    const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
-    const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(255,255,255,1)"); g.addColorStop(.35, "rgba(255,255,255,.6)"); g.addColorStop(1, "rgba(255,255,255,0)");
-    x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new T.CanvasTexture(c);
+  const elastic = p => p <= 0 ? 0 : p >= 1 ? 1 : Math.pow(2, -10 * p) * Math.sin((p * 10 - .75) * (2 * Math.PI / 3)) + 1;
+  function radial(stops) { const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d"); const g = x.createRadialGradient(64, 64, 0, 64, 64, 64); stops.forEach(([o, s]) => g.addColorStop(o, s)); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new T.CanvasTexture(c); }
+  const DOT = radial([[0, "rgba(255,255,255,1)"], [.3, "rgba(255,255,255,.55)"], [1, "rgba(255,255,255,0)"]]);
+  const RING = radial([[0, "rgba(255,255,255,0)"], [.62, "rgba(255,255,255,0)"], [.8, "rgba(255,240,220,.9)"], [1, "rgba(255,255,255,0)"]]);
+  const ADD = { blending: T.AdditiveBlending, depthWrite: false, transparent: true };
+  const ADDA = { blending: T.CustomBlending, blendSrc: T.SrcAlphaFactor, blendDst: T.OneFactor, blendSrcAlpha: T.ZeroFactor, blendDstAlpha: T.OneFactor, depthWrite: false, transparent: true };
+  function glow(color, size, op, map) { const sp = new T.Sprite(new T.SpriteMaterial(Object.assign({ map: map || DOT, color, opacity: op == null ? .9 : op }, ADD))); sp.scale.set(size, size, 1); return sp; }
+  const TXT = {};
+  function textTex(s, color) {
+    const k = s + color; if (TXT[k]) return TXT[k];
+    const c = document.createElement("canvas"); c.width = 256; c.height = 96; const x = c.getContext("2d");
+    x.font = "600 46px ui-monospace,Menlo,Consolas,monospace"; x.textAlign = "center"; x.textBaseline = "middle";
+    x.shadowColor = color; x.shadowBlur = 18; x.fillStyle = color; x.fillText(s, 128, 50); x.shadowBlur = 0; x.fillStyle = "#fff"; x.globalAlpha = .55; x.fillText(s, 128, 50);
+    return (TXT[k] = new T.CanvasTexture(c));
   }
-  function ringTex() {
-    const c = document.createElement("canvas"); c.width = c.height = 128; const x = c.getContext("2d");
-    const g = x.createRadialGradient(64, 64, 40, 64, 64, 64); g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(.7, "rgba(255,240,220,.9)"); g.addColorStop(1, "rgba(255,255,255,0)");
-    x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new T.CanvasTexture(c);
-  }
-  const DOT = dotTex(), RING = ringTex();
-  function glow(color, size, op, map) {
-    const sp = new T.Sprite(new T.SpriteMaterial({ map: map || DOT, color, blending: T.AdditiveBlending, depthWrite: false, transparent: true, opacity: op == null ? .9 : op }));
-    sp.scale.set(size, size, 1); return sp;
-  }
-  const add = c => new T.LineBasicMaterial({ color: c, transparent: true, opacity: .8, blending: T.AdditiveBlending, depthWrite: false });
-  // singularity flash + shockwave shared by every state
   function genesisFX(G) {
     const flash = glow(0xffffff, .1, 0), shock = glow(0xffe8cc, .1, 0, RING); G.add(flash, shock);
-    return g => {
-      const a = cl(g, 0, .08), b = cl(g, .08, .3);
-      flash.material.opacity = g < .3 ? (a < 1 ? a : 1 - b) : 0; flash.scale.setScalar(.15 + a * .9 - b * .6);
-      const s = cl(g, .04, .34); shock.material.opacity = g < .34 ? (1 - s) * .9 : 0; shock.scale.setScalar(.2 + s * 3.2);
-    };
+    return g => { const a = cl(g, 0, .08), b = cl(g, .08, .3); flash.material.opacity = g < .3 ? (a < 1 ? a : 1 - b) : 0; flash.scale.setScalar(.15 + a * .9 - b * .6); const s = cl(g, .04, .34); shock.material.opacity = g < .34 ? (1 - s) * .9 : 0; shock.scale.setScalar(.2 + s * 3.4); };
   }
-  function edgeList(geo) {   // pairs of points from an EdgesGeometry
-    const a = geo.attributes.position.array, E = [];
-    for (let i = 0; i < a.length; i += 6) E.push([new T.Vector3(a[i], a[i + 1], a[i + 2]), new T.Vector3(a[i + 3], a[i + 4], a[i + 5])]);
-    return E;
-  }
+  function fib(n, r, jit) { const out = []; for (let i = 0; i < n; i++) { const y = 1 - (i + .5) / n * 2, rr = Math.sqrt(1 - y * y), th = i * 2.39996; const v = new T.Vector3(Math.cos(th) * rr, y, Math.sin(th) * rr).multiplyScalar(r * (1 + (Math.random() - .5) * jit)); out.push(v); } return out; }
 
-  /* 1 核心意識態：靜默之核 */
+  /* 1 核心意識態：神經網絡權重核心 */
+  function tokenTex() {
+    const c = document.createElement("canvas"); c.width = 1024; c.height = 512; const x = c.getContext("2d");
+    x.fillStyle = "#000"; x.fillRect(0, 0, 1024, 512);
+    const toks = ["the", "▁AI", "##ing", "我", "也", "可以", "tok", "▁做", "工具", "{", "}", "</>", "▁think", "λ", "∑", "0.73", "attn", "▁you", "▁can", "✦"];
+    for (let i = 0; i < 420; i++) { x.font = `${10 + Math.random() * 18}px ui-monospace,monospace`; x.fillStyle = ["#ffcf9e", "#ffe7c2", "#8fe6ff", "#f39a7a"][i % 4]; x.globalAlpha = .35 + Math.random() * .65; x.fillText(toks[i % toks.length], Math.random() * 1024, Math.random() * 512); }
+    const t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; return t;
+  }
   function entCore() {
-    const G = new T.Group(), E = { group: G, energy: 0, g: 1 };
-    const fx = genesisFX(G);
-    const shell = new T.Group(); G.add(shell);
-    const layers = [];
-    for (let i = 0; i < 6; i++) {
-      const s = .52 + i * .055, op = i === 5 ? .32 : .1;
-      const m = new T.Mesh(new T.DodecahedronGeometry(s, 0), new T.MeshPhysicalMaterial({ color: i === 5 ? 0x1a1b20 : 0x2a2420, transparent: true, opacity: op, roughness: .7, metalness: .2, clearcoat: .6, depthWrite: false, side: T.DoubleSide }));
-      m.userData = { op }; shell.add(m); layers.push(m);
-    }
-    // weaving wireframe: edges grow outward from the top vertex, each with a glowing shuttle on its tip
-    const EL = edgeList(new T.EdgesGeometry(new T.DodecahedronGeometry(.8, 0)));
-    const seed = new T.Vector3(0, 1, 0).multiplyScalar(.8);
-    EL.forEach(e => { if (e[1].distanceTo(seed) < e[0].distanceTo(seed)) e.reverse(); e.d = e[0].distanceTo(seed); });
-    EL.sort((a, b) => a.d - b.d);
-    const ep = new Float32Array(EL.length * 6), eg = new T.BufferGeometry(); eg.setAttribute("position", new T.BufferAttribute(ep, 3));
-    shell.add(new T.LineSegments(eg, add(0xf3e2c7)));
-    const shuttles = []; for (let i = 0; i < 6; i++) { const s = glow(0xffe6c4, .12, 0); shell.add(s); shuttles.push(s); }
-    const core = new T.Mesh(new T.SphereGeometry(.045, 16, 12), new T.MeshBasicMaterial({ color: 0xffffff })); G.add(core);
-    const g1 = glow(0xffd9a8, .9), g2 = glow(0xd97757, 2.2, .35); G.add(g1, g2);
-    const rings = [];
-    for (let r = 0; r < 3; r++) {
-      const n = 42, rad = 1.05 + r * .17, pos = new Float32Array(n * 3);
-      for (let i = 0; i < n; i++) { const a = i / n * Math.PI * 2; pos[i * 3] = Math.cos(a) * rad; pos[i * 3 + 2] = Math.sin(a) * rad; }
-      const pg = new T.BufferGeometry(); pg.setAttribute("position", new T.BufferAttribute(pos, 3));
-      const pts = new T.Points(pg, new T.PointsMaterial({ map: DOT, size: .07, color: 0xf3e2c7, transparent: true, blending: T.AdditiveBlending, depthWrite: false }));
-      const lg = new T.BufferGeometry(); const lp = new Float32Array(n * 6); lg.setAttribute("position", new T.BufferAttribute(lp, 3));
-      const lines = new T.LineSegments(lg, add(r === 1 ? 0xe9a081 : 0xbfd8ff)); lines.material.opacity = .35;
-      const ring = new T.Group(); ring.add(pts, lines); ring.rotation.set(r * .9 + .3, r * 1.3, r * .5); G.add(ring);
-      rings.push({ ring, pos, lp, lg, pg, lines, n, sp: .25 + r * .13 });
-    }
-    const relink = () => { for (const R of rings) { for (let i = 0; i < R.n; i++) { const j = (i + 1 + Math.floor(Math.random() * 6)) % R.n; R.lp.set([R.pos[i * 3], 0, R.pos[i * 3 + 2], R.pos[j * 3], 0, R.pos[j * 3 + 2]], i * 6); } R.lg.attributes.position.needsUpdate = true; } };
-    relink(); let rl = 0;
-    const cubes = []; for (let i = 0; i < 12; i++) { const c = new T.Mesh(new T.BoxGeometry(.035, .035, .035), new T.MeshBasicMaterial({ color: 0xf3e2c7 })); c.userData = { d: new T.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize(), ph: Math.random() * 6 }; G.add(c); cubes.push(c); }
-    const tmp = new T.Vector3();
+    const G = new T.Group(), E = { group: G, energy: 0, g: 1 }; const fx = genesisFX(G);
+    const tt = tokenTex(), tt2 = tt.clone(); tt2.needsUpdate = true; tt2.repeat.set(1.5, 1.5);
+    const coreM = new T.MeshPhysicalMaterial({ color: 0x120c0a, roughness: .25, metalness: .3, clearcoat: 1, emissive: 0xffffff, emissiveMap: tt, emissiveIntensity: .9 });
+    const core = new T.Mesh(new T.SphereGeometry(.42, 64, 40), coreM); G.add(core);
+    const skin = new T.Mesh(new T.SphereGeometry(.47, 48, 32), new T.MeshBasicMaterial(Object.assign({ map: tt2, color: 0xffb48a, opacity: .35 }, ADDA))); G.add(skin);
+    const hal = glow(0xffb07a, 2.1, .4); G.add(hal);
+    // neuron layers + fibers
+    const layers = [fib(LOW ? 18 : 28, .72, .1), fib(LOW ? 28 : 46, 1.02, .12), fib(LOW ? 38 : 64, 1.32, .12)];
+    const nodes = layers.flat(); const lay = []; layers.forEach((L, i) => L.forEach(() => lay.push(i)));
+    const edges = [];
+    layers.forEach((L, li) => { if (li === layers.length - 1) return; const off = layers.slice(0, li + 1).reduce((s, a) => s + a.length, 0) - L.length, off2 = off + L.length;
+      L.forEach((a, i) => { const nx = layers[li + 1].map((b, j) => [a.distanceTo(b), j]).sort((p, q) => p[0] - q[0]).slice(0, 4); nx.forEach(([, j]) => edges.push([off + i, off2 + j, li])); }); });
+    layers[0].forEach((a, i) => edges.push([-1, i, -1]));                       // core → first layer
+    const ep = new Float32Array(edges.length * 6), ec = new Float32Array(edges.length * 6);
+    const eg = new T.BufferGeometry(); eg.setAttribute("position", new T.BufferAttribute(ep, 3)); eg.setAttribute("color", new T.BufferAttribute(ec, 3));
+    const fibers = new T.LineSegments(eg, new T.LineBasicMaterial(Object.assign({ vertexColors: true, opacity: .55 }, ADDA))); G.add(fibers);
+    const np = new Float32Array(nodes.length * 3); nodes.forEach((v, i) => np.set([v.x, v.y, v.z], i * 3));
+    const ng = new T.BufferGeometry(); ng.setAttribute("position", new T.BufferAttribute(np, 3));
+    const nPts = new T.Points(ng, new T.PointsMaterial(Object.assign({ map: DOT, size: .07, color: 0xffe2c4 }, ADDA))); G.add(nPts);
+    const NP = LOW ? 60 : 120, pp = new Float32Array(NP * 3), pulses = [];
+    for (let i = 0; i < NP; i++) pulses.push({ e: Math.floor(Math.random() * edges.length), t: Math.random(), sp: .6 + Math.random() * 1.2 });
+    const pg = new T.BufferGeometry(); pg.setAttribute("position", new T.BufferAttribute(pp, 3));
+    const pPts = new T.Points(pg, new T.PointsMaterial(Object.assign({ map: DOT, size: .09, color: 0xfff1d6 }, ADDA))); G.add(pPts);
+    const O = new T.Vector3(), A = new T.Vector3(), B = new T.Vector3(), cw = new T.Color(0xffa070), cc = new T.Color(0x6fd8ff), col = new T.Color();
+    const P = i => i < 0 ? O : nodes[i];
     E.update = (dt, t) => {
       const g = E.g; fx(g);
-      // line phase
-      const n = EL.length; let sh = 0;
-      EL.forEach((e, k) => {
-        const st = .15 + k / n * .45, p = cl(g, st, st + .12);
-        tmp.lerpVectors(e[0], e[1], p); ep.set([e[0].x, e[0].y, e[0].z, tmp.x, tmp.y, tmp.z], k * 6);
-        if (p > 0 && p < 1 && sh < shuttles.length) { shuttles[sh].position.copy(tmp); shuttles[sh].material.opacity = .95; sh++; }
+      const sc = g >= 1 ? 1 : Math.max(.001, back(cl(g, .05, .35)));
+      core.scale.setScalar(sc); skin.scale.setScalar(sc);
+      tt.offset.x += dt * .02; tt2.offset.x -= dt * .035; tt2.offset.y += dt * .01;
+      coreM.emissiveIntensity = .7 + .3 * Math.sin(t * 3.1) + E.energy * .8 + Math.random() * .08;
+      hal.material.opacity = (.3 + .12 * Math.sin(t * 1.6) + E.energy * .3) * cl(g, .1, .4);
+      // fibers grow outward layer by layer
+      edges.forEach(([a, b, li], k) => {
+        const st = .25 + (li + 1) * .18 + (k % 17) / 17 * .08, q = cl(g, st, st + .14);
+        A.copy(P(a)); B.lerpVectors(A, P(b), q); ep.set([A.x, A.y, A.z, B.x, B.y, B.z], k * 6);
+        const f = (.35 + .2 * Math.sin(t * 2 + k)) * (q > 0 ? 1 : 0) * (1 + E.energy * .6);
+        col.copy(cw).lerp(cc, (li + 1) / 3).multiplyScalar(f); ec.set([col.r, col.g, col.b, col.r * .6, col.g * .6, col.b * .6], k * 6);
       });
-      for (let i = sh; i < shuttles.length; i++) shuttles[i].material.opacity = 0;
-      eg.attributes.position.needsUpdate = true;
-      // surface phase: films unfold from inside out
-      layers.forEach((m, i) => { const q = cl(g, .62 + i * .05, .78 + i * .05); m.material.opacity = m.userData.op * q; m.scale.setScalar(q > 0 ? .9 + .1 * back(q) : .001); });
-      // rings sweep on like a clock hand
-      rings.forEach((R, i) => { const q = cl(g, .5 + i * .06, .85 + i * .05); R.pg.setDrawRange(0, Math.floor(R.n * q)); R.lines.visible = g >= 1; });
-      const cq = cl(g, 0, .2);
-      const br = .5 + .5 * Math.sin(t * Math.PI / 2);
-      const ns = rings.map(R => new T.Vector3(0, 1, 0).applyQuaternion(R.ring.quaternion));
-      const al = Math.max(Math.abs(ns[0].dot(ns[1])), Math.abs(ns[1].dot(ns[2])));
-      const flash = Math.max(0, (al - .96) * 25) + E.energy;
-      core.scale.setScalar(cq); g1.scale.setScalar((.7 + br * .35 + flash * .8) * cq); g2.material.opacity = (.22 + br * .15 + flash * .3) * cq;
-      shell.rotation.y += dt * .12; shell.rotation.x += dt * .05;
-      rings.forEach((R, i) => { R.ring.rotateOnAxis(new T.Vector3(0, 1, 0), dt * R.sp * (1 + (E.focus || 0))); R.ring.rotation.x += dt * .03 * (i - 1); });
-      rl += dt; if (rl > .6) { rl = 0; relink(); }
-      const shed = Math.round(4 + (E.focus || 0) * 8);
-      cubes.forEach((c, i) => { const p = (Math.sin(t * 1.3 + c.userData.ph) + 1) / 2, o = Math.pow(p, 8); c.position.copy(c.userData.d).multiplyScalar(.62 + o * .5); c.rotation.x += dt * 2; c.rotation.y += dt * 3; c.visible = g >= 1 && i < shed && o > .02; });
-      E.energy = Math.max(0, E.energy - dt * 1.5);
+      eg.attributes.position.needsUpdate = true; eg.attributes.color.needsUpdate = true;
+      ng.setDrawRange(0, Math.floor(nodes.length * cl(g, .3, .8)));
+      // signals race along the weights
+      const sp = 1 + E.energy * 2 + (E.focus || 0);
+      pulses.forEach((p, i) => { p.t += dt * p.sp * sp; if (p.t > 1) { p.t = 0; p.e = Math.floor(Math.random() * edges.length); } const [a, b] = edges[p.e]; A.lerpVectors(P(a), P(b), p.t); pp.set(g >= 1 ? [A.x, A.y, A.z] : [0, 0, 0], i * 3); });
+      pg.attributes.position.needsUpdate = true; pPts.visible = g >= .9;
+      G.rotation.y += dt * .12;
+      E.energy = Math.max(0, E.energy - dt * 1.4);
     };
-    E.pulse = () => { E.energy = 1.2; };
-    E.disturb = () => { E.energy = Math.min(1.5, E.energy + .05); };
+    E.pulse = () => { E.energy = 1.2; }; E.disturb = () => { E.energy = Math.min(1.3, E.energy + .04); };
     return E;
   }
 
-  /* 2 資訊吞吐態：潮汐之流 */
-  function mobius() {
-    const U = 90, V = 6, pos = [], idx = [];
-    for (let i = 0; i <= U; i++) for (let j = 0; j <= V; j++) {
-      const u = i / U * Math.PI * 2, v = (j / V - .5) * .36;
-      pos.push((1 + v * Math.cos(u / 2)) * Math.cos(u) * .42, v * Math.sin(u / 2) * .42 * 1.6, (1 + v * Math.cos(u / 2)) * Math.sin(u) * .42);
-    }
-    for (let i = 0; i < U; i++) for (let j = 0; j < V; j++) { const a = i * (V + 1) + j, b = a + V + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
-    const g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); return g;
-  }
+  /* 2 資訊吞吐態：代碼生長矩陣 */
   function entFlux() {
-    const G = new T.Group(), E = { group: G, energy: 0, g: 1 };
-    const fx = genesisFX(G);
-    const N = LOW ? 1600 : 3200, pos = new Float32Array(N * 3), col = new Float32Array(N * 3), seed = [];
-    const cin = [new T.Color(0x6fe3ff), new T.Color(0x3b3fd1)], cout = [new T.Color(0xd97757), new T.Color(0xffc46b)];
-    for (let i = 0; i < N; i++) {
-      const s = i % 2, u = Math.random();
-      seed.push({ s, u, off: Math.random() * 6.28, r: .9 + Math.random() * .2, sp: .12 + Math.random() * .1, dir: new T.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize(), burst: .6 + Math.random() * 1.1 });
-      const c = (s ? cout : cin)[0].clone().lerp((s ? cout : cin)[1], Math.random()); col.set([c.r, c.g, c.b], i * 3);
+    const G = new T.Group(), E = { group: G, energy: 0, g: 1, waves: [] }; const fx = genesisFX(G);
+    const tags = ["<div>", "</>", "<h1>", "{ }", "flex", "<a>", ":root", "<p>", "css", "grid", "</div>", "<li>", "px", "#fff", "<svg>", "=>"];
+    const cols = ["#ffcf9e", "#8fe6ff", "#f39a7a", "#ffe7c2"];
+    const n = LOW ? 4 : 5, cube = new T.Group(); G.add(cube); const cells = [];
+    for (let x = 0; x < n; x++) for (let y = 0; y < n; y++) for (let z = 0; z < n; z++) {
+      const s = new T.Sprite(new T.SpriteMaterial(Object.assign({ map: textTex(tags[(x * 7 + y * 3 + z * 5) % tags.length], cols[(x + y + z) % 4]), opacity: 0 }, ADD)));
+      const home = new T.Vector3((x - (n - 1) / 2) * .32, (y - (n - 1) / 2) * .32 + .05, (z - (n - 1) / 2) * .32);
+      s.scale.set(.42, .16, 1); s.userData = { home, y, ph: Math.random() * 6, f: .4 + Math.random() * .6 }; cube.add(s); cells.push(s);
     }
-    const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.BufferAttribute(pos, 3)); geo.setAttribute("color", new T.BufferAttribute(col, 3));
-    const pts = new T.Points(geo, new T.PointsMaterial({ map: DOT, size: .045, vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false })); G.add(pts);
-    const mg = mobius(), mcount = mg.index.count;
-    const mb = new T.Mesh(mg, new T.MeshPhysicalMaterial({ color: 0xd8c3a8, metalness: .9, roughness: .22, clearcoat: 1, side: T.DoubleSide, emissive: 0x3a2010, emissiveIntensity: .4 })); G.add(mb);
-    const horizon = new T.Mesh(new T.TorusGeometry(.26, .008, 8, 96), new T.MeshBasicMaterial({ color: 0xffd79a, transparent: true, blending: T.AdditiveBlending })); horizon.rotation.x = Math.PI / 2; G.add(horizon);
-    const core = glow(0xfff0d0, 1.1, .7); G.add(core);
-    const pulses = []; for (let i = 0; i < 8; i++) { const p = glow(i % 2 ? 0x8fe6ff : 0xffc46b, .22); p.userData.ph = i / 8; G.add(p); pulses.push(p); }
-    let squeeze = 0, spin = 0, closed = false;
-    E.update = (dt, t) => {
-      const g = E.g; fx(g);
-      const k = 1 - squeeze * .25;
-      const burst = cl(g, .05, .3), gather = cl(g, .3, .8);
-      spin += dt * (1 + E.energy * 1.5);
-      for (let i = 0; i < N; i++) {
-        const S = seed[i]; S.u = (S.u + dt * S.sp * (1 + E.energy * 1.5)) % 1;
-        const u = S.s ? S.u : 1 - S.u;
-        const rad = (.18 + u * 1.25) * S.r * k, w = 1 / Math.sqrt(.25 + rad), ang = (S.s ? 1 : -1) * u * 7 + S.off + spin * w * 1.4;
-        let x = Math.cos(ang) * rad, z = Math.sin(ang) * rad, y = (S.s ? 1 : -1) * (u * .5) + Math.sin(ang * 2 + t) * .05;
-        if (g < .8) { const bx = S.dir.x * S.burst * burst, by = S.dir.y * S.burst * burst, bz = S.dir.z * S.burst * burst, q = gather * gather * (3 - 2 * gather); x = bx + (x - bx) * q; y = by + (y - by) * q; z = bz + (z - bz) * q; }
-        pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z;
-      }
-      geo.attributes.position.needsUpdate = true;
-      pts.material.size = g < .05 ? 0 : .045;
-      const mq = cl(g, .4, .85); mg.setDrawRange(0, Math.floor(mcount * mq / 3) * 3);
-      if (mq >= 1 && !closed) { closed = true; E.energy = Math.max(E.energy, .9); }
-      mb.rotation.y += dt * .9 * (1 + E.energy); mb.rotation.x = Math.sin(t * .5) * .3; mb.material.emissiveIntensity = .35 + E.energy * .8;
-      pulses.forEach(p => { const u = (p.userData.ph + t * .35 * (1 + E.energy)) % 1 * Math.PI * 2; p.position.set(Math.cos(u) * .42, Math.sin(u * 3) * .08, Math.sin(u) * .42).applyEuler(mb.rotation); p.visible = g >= .85; });
-      const breathe = .5 + .5 * Math.sin(t * Math.PI * 2 * 1.2);
-      core.scale.setScalar((.8 + breathe * .25 + E.energy * .8) * cl(g, .25, .7)); horizon.material.opacity = (.35 + breathe * .4) * cl(g, .7, .9);
-      squeeze = Math.max(0, squeeze - dt * 3); E.energy = Math.max(0, E.energy - dt * 1.2);
-    };
-    E.pulse = () => { squeeze = 1; E.energy = 1.4; };
-    E.disturb = () => { E.energy = Math.min(1.2, E.energy + .04); };
-    return E;
-  }
-
-  /* 3 空間共振態：多維迴廊 */
-  function entRes() {
-    const G = new T.Group(), E = { group: G, energy: 0, g: 1, waves: [] };
-    const fx = genesisFX(G);
-    const V4 = []; for (let i = 0; i < 16; i++) V4.push([i & 1 ? 1 : -1, i & 2 ? 1 : -1, i & 4 ? 1 : -1, i & 8 ? 1 : -1]);
-    const ED = []; for (let i = 0; i < 16; i++) for (let b = 0; b < 4; b++) { const j = i ^ (1 << b); if (i < j) ED.push([i, j, b]); }
-    const lp = new Float32Array(ED.length * 6), lc = new Float32Array(ED.length * 6);
-    const lg = new T.BufferGeometry(); lg.setAttribute("position", new T.BufferAttribute(lp, 3)); lg.setAttribute("color", new T.BufferAttribute(lc, 3));
-    G.add(new T.LineSegments(lg, new T.LineBasicMaterial({ vertexColors: true, transparent: true, blending: T.AdditiveBlending, depthWrite: false })));
-    const nodes = V4.map(() => { const g = new T.Group(); const s = new T.Mesh(new T.TorusKnotGeometry(.045, .016, 40, 6, 2, 3), new T.MeshPhysicalMaterial({ color: 0xf6f1e7, roughness: .3, clearcoat: 1, emissive: 0x6a4a3a, emissiveIntensity: .4 })); g.add(s, glow(0xffe2c0, .3, .7)); G.add(g); return g; });
-    const fibers = ED.map(() => { const m = new T.Mesh(new T.CylinderGeometry(.018, .018, 1, 8, 1, true), new T.MeshPhysicalMaterial({ color: 0xeaf6ff, transparent: true, opacity: .22, roughness: .05, clearcoat: 1, depthWrite: false })); G.add(m); return m; });
-    const seg = LOW ? 30 : 48;
-    const grid = new T.Mesh(new T.PlaneGeometry(5, 5, seg, seg), new T.MeshBasicMaterial({ vertexColors: true, wireframe: true, transparent: true, opacity: .55, blending: T.CustomBlending, blendSrc: T.SrcAlphaFactor, blendDst: T.OneFactor, blendSrcAlpha: T.ZeroFactor, blendDstAlpha: T.OneFactor, depthWrite: false }));
-    grid.rotation.x = -Math.PI / 2; grid.position.y = -1.15; G.add(grid);
+    const frame = new T.LineSegments(new T.EdgesGeometry(new T.BoxGeometry(n * .32 + .1, n * .32 + .1, n * .32 + .1)), new T.LineBasicMaterial(Object.assign({ color: 0xffcf9e, opacity: .25 }, ADDA))); frame.position.y = .05; cube.add(frame);
+    // ripple floor shared with the matrix: energy threads rise from wave crests into the cube
+    const seg = LOW ? 28 : 44, grid = new T.Mesh(new T.PlaneGeometry(3.2, 3.2, seg, seg), new T.MeshBasicMaterial(Object.assign({ vertexColors: true, wireframe: true, opacity: .6 }, ADDA)));
+    grid.rotation.x = -Math.PI / 2; grid.position.y = -1.05; G.add(grid);
     const gp = grid.geometry.attributes.position, g0 = gp.array.slice(), gc = new Float32Array(gp.count * 3); grid.geometry.setAttribute("color", new T.BufferAttribute(gc, 3));
-    const P3 = [], up = new T.Vector3(0, 1, 0), tmp = new T.Vector3(), Bv = new T.Vector3(), col = new T.Color(), lo = new T.Color(0x2a2f8a), hi = new T.Color(0xc9f5ff);
-    let a1 = 0, a2 = 0, base = 0;
+    const NR = LOW ? 70 : 140, rp = new Float32Array(NR * 3), rise = []; for (let i = 0; i < NR; i++) rise.push({ x: (Math.random() - .5) * 2.4, z: (Math.random() - .5) * 2.4, t: Math.random() });
+    const rg = new T.BufferGeometry(); rg.setAttribute("position", new T.BufferAttribute(rp, 3));
+    const risers = new T.Points(rg, new T.PointsMaterial(Object.assign({ map: DOT, size: .06, color: 0x9fe8ff }, ADDA))); G.add(risers);
+    const col = new T.Color(), lo = new T.Color(0x1c2a7a), hi = new T.Color(0xbff4ff), warm = new T.Color(0xffb27a);
+    let base = 0;
     E.update = (dt, t) => {
       const g = E.g; fx(g);
-      a1 += dt * .45 * (1 + E.energy); a2 += dt * .3;
-      const c1 = Math.cos(a1), s1 = Math.sin(a1), c2 = Math.cos(a2), s2 = Math.sin(a2);
-      V4.forEach((v, i) => {
-        let [x, y, z, w] = v;
-        [x, w] = [x * c1 - w * s1, x * s1 + w * c1];
-        [y, z] = [y * c2 - z * s2, y * s2 + z * c2];
-        const k = 1.25 / (2.6 - w); P3[i] = new T.Vector3(x * k * .55, y * k * .55, z * k * .55);
-        const q = cl(g, .08 + i / 16 * .25, .38 + i / 16 * .25);       // nodes spiral out of the singularity
-        const p = P3[i].clone().applyAxisAngle(up, (1 - q) * 3.2).multiplyScalar(q > 0 ? back(q) : 0);
-        nodes[i].position.copy(p); nodes[i].visible = q > 0; nodes[i].rotation.x += dt;
-        nodes[i].children[1].scale.setScalar(.22 + .12 * Math.max(0, Math.sin(t * 3 + i)) + E.energy * .2);
-        P3[i] = p;
-      });
-      ED.forEach(([i, j, b], e) => {
-        const q = cl(g, .4 + b * .12, .58 + b * .12);                // threads woven dimension by dimension; the 4th crosses from inner to outer cube
-        const A = P3[i]; Bv.lerpVectors(A, P3[j], q); lp.set([A.x, A.y, A.z, Bv.x, Bv.y, Bv.z], e * 6);
-        const view = Math.abs(tmp.subVectors(P3[j], A).normalize().z);
-        const h = b === 3 && q < 1 ? (.72 + q * .45) % 1 : (.72 + view * .35 + t * .03) % 1;
-        col.setHSL(h, .55, (.62 + E.energy * .2) * (q > 0 ? 1 : 0)); lc.set([col.r, col.g, col.b, col.r, col.g, col.b], e * 6);
-        const f = fibers[e], len = A.distanceTo(Bv); f.visible = q > .02; f.position.copy(A).add(Bv).multiplyScalar(.5); f.scale.set(1, Math.max(len, .001), 1); if (len > .001) f.quaternion.setFromUnitVectors(up, tmp.subVectors(Bv, A).normalize());
-      });
-      lg.attributes.position.needsUpdate = true; lg.attributes.color.needsUpdate = true;
-      // quantum ripples: a breathing base wave + one strong source per placed piece; crests light the grid
-      base += dt * 1.2;
-      const reveal = cl(g, .25, .9), sink = .1 + (E.progress || 0) * .2;
+      // the matrix is built bottom-up, layer by layer, tags dropping into their cells
+      cells.forEach(s => { const u = s.userData, q = cl(g, .2 + u.y / n * .5, .35 + u.y / n * .5), e = q > 0 ? back(q) : 0;
+        s.position.copy(u.home); s.position.y += (1 - e) * .9; s.position.x += Math.sin(t * 1.3 + u.ph) * .015; s.position.y += Math.sin(t * 1.7 + u.ph) * .012;
+        s.material.opacity = q * (u.f * (.55 + .45 * Math.sin(t * 4 + u.ph * 3)) + E.energy * .4); });
+      frame.material.opacity = .25 * cl(g, .75, 1) * (1 + E.energy);
+      cube.rotation.y += dt * (.35 + E.energy * .8); cube.rotation.x = Math.sin(t * .4) * .15;
+      base += dt * (1.2 + E.energy * 2);
+      const reveal = cl(g, .1, .8);
       for (let i = 0; i < gp.count; i++) {
         const x = g0[i * 3], y = g0[i * 3 + 1], d = Math.hypot(x, y);
-        let z = Math.sin(d * 4 - base * 3) * .03 * Math.exp(-d * .5) - sink * Math.exp(-d * d * .8);
-        for (const W of E.waves) { const age = t - W.t0; if (age < 0 || age > 3) continue; const dd = Math.hypot(x - W.x, y - W.y); z += Math.sin(dd * 6 - age * 9) * .09 * Math.exp(-dd * .7) * Math.exp(-age * 1.2) * cl(age * 9, dd * 6 - 1, dd * 6); }
+        let z = Math.sin(d * 5 - base * 3) * .05 * Math.exp(-d * .6) - (.08 + (E.progress || 0) * .15) * Math.exp(-d * d * 1.2);
+        for (const W of E.waves) { const age = t - W.t0; if (age < 0 || age > 3) continue; z += Math.sin(d * 7 - age * 10) * .1 * Math.exp(-d * .6) * Math.exp(-age * 1.3) * cl(age * 10, d * 7 - 1, d * 7); }
         gp.array[i * 3 + 2] = z;
-        const vis = cl(reveal * 3.2 - d, 0, .4);                         // carpet unrolls outward from the centre
-        col.copy(lo).lerp(hi, Math.min(1, Math.max(0, z * 6 + .4))).multiplyScalar(vis * (.25 + Math.max(0, z) * 5));
-        gc[i * 3] = col.r; gc[i * 3 + 1] = col.g; gc[i * 3 + 2] = col.b;
+        const vis = cl(reveal * 2.6 - d, 0, .4);
+        col.copy(lo).lerp(hi, Math.min(1, Math.max(0, z * 6 + .45))).lerp(warm, E.energy * .4).multiplyScalar(vis * (.2 + Math.max(0, z) * 6));
+        gc.set([col.r, col.g, col.b], i * 3);
       }
       gp.needsUpdate = true; grid.geometry.attributes.color.needsUpdate = true;
-      E.waves = E.waves.filter(W => t - W.t0 < 3);
-      E.t = t; E.energy = Math.max(0, E.energy - dt);
+      rise.forEach((r, i) => { r.t += dt * (.5 + E.energy); if (r.t > 1) { r.t = 0; r.x = (Math.random() - .5) * 2.4; r.z = (Math.random() - .5) * 2.4; } const k = r.t * r.t; rp.set([r.x * (1 - k * .8), -1.0 + r.t * 1.05, r.z * (1 - k * .8)], i * 3); });
+      rg.attributes.position.needsUpdate = true; risers.material.opacity = cl(g, .7, 1);
+      E.waves = E.waves.filter(W => t - W.t0 < 3); E.t = t;
+      E.energy = Math.max(0, E.energy - dt * 1.2);
     };
-    E.pulse = () => { E.energy = 1.3; E.waves.push({ x: (Math.random() - .5) * 1.2, y: (Math.random() - .5) * 1.2, t0: E.t || 0 }); };
-    E.disturb = () => { E.energy = Math.min(1, E.energy + .04); };
+    E.pulse = () => { E.energy = 1.3; E.waves.push({ t0: E.t || 0 }); }; E.disturb = () => { E.energy = Math.min(1.2, E.energy + .04); };
     return E;
   }
 
-  /* 4 極致平衡態：靜止之潮 */
-  function entEq() {
-    const G = new T.Group(), E = { group: G, energy: 0, g: 1 };
-    const fx = genesisFX(G);
-    const og = new T.EdgesGeometry(new T.IcosahedronGeometry(1.0, 2)), ocount = og.attributes.position.count;
-    const order = new T.LineSegments(og, new T.LineBasicMaterial({ color: 0xe9d3a6, transparent: true, opacity: .75 })); G.add(order);
-    const ch = new T.IcosahedronGeometry(.9, 1), cp = ch.attributes.position; for (let i = 0; i < cp.count; i++) { const v = new T.Vector3().fromBufferAttribute(cp, i); v.multiplyScalar(1 + Math.abs(Math.sin(i * 12.9898) * 43758.5453 % 1) * .12); cp.setXYZ(i, v.x, v.y, v.z); }
-    const chaos = new T.Group(); G.add(chaos);
-    const cMat = new T.MeshPhysicalMaterial({ color: 0xd9e8f0, transparent: true, opacity: .14, roughness: .05, clearcoat: 1, flatShading: true, depthWrite: false, side: T.DoubleSide });
-    const cLine = new T.LineBasicMaterial({ color: 0x9fd8ff, transparent: true, opacity: .35, blending: T.AdditiveBlending, depthWrite: false });
-    chaos.add(new T.Mesh(ch, cMat), new T.LineSegments(new T.EdgesGeometry(ch), cLine));
-    const mirror = new T.Mesh(new T.SphereGeometry(.38, 48, 32), new T.MeshStandardMaterial({ color: 0xffffff, metalness: 1, roughness: .04, envMapIntensity: 1.2 })); G.add(mirror);
-    const film = new T.Mesh(new T.SphereGeometry(.392, 48, 32), new T.MeshBasicMaterial({ color: 0x2aa8a0, transparent: true, opacity: .12, blending: T.AdditiveBlending, depthWrite: false, side: T.BackSide })); G.add(film);
-    const seam = new T.Mesh(new T.TorusGeometry(.96, .006, 6, 128), new T.MeshBasicMaterial({ color: 0xffffff, transparent: true })); seam.rotation.x = Math.PI / 2; G.add(seam);
-    const lock = glow(0xffffff, .5, 0); G.add(lock);
-    const sweep = glow(0xd97757, .6, 0); G.add(sweep);
-    const NF = LOW ? 160 : 320, fp = new Float32Array(NF * 3); for (let i = 0; i < NF; i++) { const v = new T.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).normalize().multiplyScalar(.45 + Math.random() * .4); fp.set([v.x, v.y, v.z], i * 3); }
-    const fg = new T.BufferGeometry(); fg.setAttribute("position", new T.BufferAttribute(fp, 3));
-    const fog = new T.Points(fg, new T.PointsMaterial({ map: DOT, size: .04, color: 0xfff1d6, transparent: true, opacity: .55, blending: T.AdditiveBlending, depthWrite: false })); G.add(fog);
-    let desync = 0, sw = 6, locked = false;
+  /* 3 空間共振態：高維向量空間（Embedding Cluster） */
+  function entRes() {
+    const G = new T.Group(), E = { group: G, energy: 0, g: 1 }; const fx = genesisFX(G);
+    const K = 9, centers = fib(K, .62, .2), hues = [.04, .08, .13, .52, .55, .6, .72, .9, .98];
+    const N = LOW ? 1400 : 3000, home = new Float32Array(N * 3), pos = new Float32Array(N * 3), col = new Float32Array(N * 3), base = new Float32Array(N * 3), clu = new Uint8Array(N);
+    const c = new T.Color(), rnd = () => { let s = 0; for (let i = 0; i < 4; i++) s += Math.random(); return s / 4 - .5; };
+    for (let i = 0; i < N; i++) {
+      const k = i % K, s = .17 + Math.random() * .06; clu[i] = k;
+      const v = i % 7 === 0 ? new T.Vector3(rnd(), rnd(), rnd()).multiplyScalar(2.2) : new T.Vector3(rnd(), rnd(), rnd()).multiplyScalar(s * 3.4).add(centers[k]);
+      home.set([v.x, v.y, v.z], i * 3);
+      c.setHSL(hues[k], .75, .62 + Math.random() * .2); base.set([c.r, c.g, c.b], i * 3);
+    }
+    const geo = new T.BufferGeometry(); geo.setAttribute("position", new T.BufferAttribute(pos, 3)); geo.setAttribute("color", new T.BufferAttribute(col, 3));
+    const pts = new T.Points(geo, new T.PointsMaterial(Object.assign({ map: DOT, size: .065, vertexColors: true }, ADDA))); G.add(pts);
+    const fog = glow(0x7fa8ff, 2.6, .18); G.add(fog);
+    const ML = LOW ? 60 : 120, lp = new Float32Array(ML * 6), lc = new Float32Array(ML * 6), life = new Float32Array(ML), pair = [];
+    for (let i = 0; i < ML; i++) pair.push([0, 0]);
+    const lg = new T.BufferGeometry(); lg.setAttribute("position", new T.BufferAttribute(lp, 3)); lg.setAttribute("color", new T.BufferAttribute(lc, 3));
+    G.add(new T.LineSegments(lg, new T.LineBasicMaterial(Object.assign({ vertexColors: true }, ADDA))));
+    const near = i => { const k = clu[i]; let best = -1, bd = 1e9; for (let n = 0; n < 24; n++) { const j = Math.floor(Math.random() * N); if (clu[j] !== k || j === i || j % 7 === 0) continue; const d = (home[i * 3] - home[j * 3]) ** 2 + (home[i * 3 + 1] - home[j * 3 + 1]) ** 2 + (home[i * 3 + 2] - home[j * 3 + 2]) ** 2; if (d < bd) { bd = d; best = j; } } return best; };
+    let acc = 0;
     E.update = (dt, t) => {
       const g = E.g; fx(g);
-      // a drop of liquid metal, then meridians drawn on, then crystal shards fly in and lock
-      const mq = cl(g, .05, .45); mirror.scale.setScalar(Math.max(.001, elastic(mq)) * (1 + E.energy * .06)); film.scale.copy(mirror.scale);
-      og.setDrawRange(0, Math.floor(ocount * cl(g, .25, .7) / 2) * 2);
-      const cq = cl(g, .55, .9), ce = 1 - Math.pow(1 - cq, 3);
-      chaos.scale.setScalar(Math.max(.001, 2.6 - 1.6 * ce)); cMat.opacity = .14 * cq; cLine.opacity = .35 * cq;
-      if (cq >= 1 && !locked) { locked = true; E.energy = 1; }
-      lock.material.opacity = locked ? Math.max(0, lock.material.opacity - dt * 2) : (cq > .97 ? 1 : 0);
-      seam.material.opacity = cl(g, .85, 1); fog.material.opacity = .55 * cl(g, .6, 1);
-      const v = .35;
-      order.rotation.y += dt * v; chaos.rotation.y -= dt * v * (1 + desync * .6);
-      chaos.rotation.x = Math.sin(t * .2) * desync * .3;
-      seam.scale.setScalar(1 + desync * .03 * Math.sin(t * 30));
-      fog.rotation.y += dt * .03;
-      sw += dt; if (sw > 6) sw = 0;
-      const p = sw / 1.2; sweep.material.opacity = g >= 1 && p < 1 ? Math.sin(p * Math.PI) * .8 : 0; sweep.position.set(Math.cos(p * 3) * .2, (p - .5) * 1.2, .45);
-      desync = Math.max(0, desync - dt * .5); E.energy = Math.max(0, E.energy - dt);
+      const q = cl(g, .08, .7), e = 1 - Math.pow(1 - q, 3);
+      for (let i = 0; i < N; i++) {
+        const tw = .55 + .45 * Math.sin(t * (2 + (i % 13) * .4) + i);           // every point twinkles on its own clock
+        const bl = (E.energy * .6 + tw) * 1.35 * (q > 0 ? 1 : 0);
+        pos[i * 3] = home[i * 3] * e; pos[i * 3 + 1] = home[i * 3 + 1] * e; pos[i * 3 + 2] = home[i * 3 + 2] * e;
+        col[i * 3] = base[i * 3] * bl; col[i * 3 + 1] = base[i * 3 + 1] * bl; col[i * 3 + 2] = base[i * 3 + 2] * bl;
+      }
+      geo.attributes.position.needsUpdate = true; geo.attributes.color.needsUpdate = true;
+      // semantic neighbours light up: random flickering links inside each cluster
+      acc += dt * (1 + E.energy * 3);
+      for (let m = 0; m < ML; m++) {
+        life[m] -= dt * 2.2;
+        if (life[m] <= 0 && acc > .02 && g >= .7) { acc -= .02; const i = Math.floor(Math.random() * N), j = i % 7 ? near(i) : -1; if (j >= 0) { pair[m] = [i, j]; life[m] = 1; } }
+        const [i, j] = pair[m], L = Math.max(0, life[m]) * cl(g, .7, 1);
+        lp.set([pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], pos[j * 3], pos[j * 3 + 1], pos[j * 3 + 2]], m * 6);
+        lc.set([base[i * 3] * L, base[i * 3 + 1] * L, base[i * 3 + 2] * L, base[j * 3] * L, base[j * 3 + 1] * L, base[j * 3 + 2] * L], m * 6);
+      }
+      lg.attributes.position.needsUpdate = true; lg.attributes.color.needsUpdate = true;
+      fog.material.opacity = (.14 + .06 * Math.sin(t * 1.3) + E.energy * .15) * q;
+      G.rotation.y += dt * (.15 + E.energy * .4); G.rotation.x = Math.sin(t * .2) * .2;
+      E.energy = Math.max(0, E.energy - dt);
     };
-    E.pulse = () => { E.energy = 1; sw = 0; };
-    E.disturb = () => { desync = Math.min(1, desync + .06); };
-    E.wobble = () => { desync = Math.min(1, desync + .5); };
+    E.pulse = () => { E.energy = 1.2; }; E.disturb = () => { E.energy = Math.min(1, E.energy + .04); };
+    return E;
+  }
+
+  /* 4 極致平衡態：量子星芒 */
+  function sparkGeo(s) {
+    const sh = new T.Shape(), N = 4, pts = [];
+    for (let i = 0; i < N * 2; i++) { const a = i / (N * 2) * Math.PI * 2 + Math.PI / 2, r = i % 2 ? s * .2 : s; pts.push([Math.cos(a) * r, Math.sin(a) * r]); }
+    sh.moveTo(...pts[0]); for (let i = 0; i < pts.length; i++) { const p = pts[(i + 1) % pts.length], q = pts[i]; sh.quadraticCurveTo(q[0] * .25 + p[0] * .25, q[1] * .25 + p[1] * .25, p[0], p[1]); }
+    const g = new T.ExtrudeGeometry(sh, { depth: s * .22, bevelEnabled: true, bevelThickness: s * .1, bevelSize: s * .07, bevelSegments: 6, curveSegments: 18 }); g.center(); return g;
+  }
+  function entEq() {
+    const G = new T.Group(), E = { group: G, energy: 0, g: 1 }; const fx = genesisFX(G);
+    const sm = new T.MeshPhysicalMaterial({ color: 0xfff1dc, metalness: .6, roughness: .18, clearcoat: 1, emissive: 0xffb27a, emissiveIntensity: .55, envMapIntensity: 1.2 });
+    const spark = new T.Mesh(sparkGeo(.46), sm); G.add(spark);
+    const spark2 = new T.Mesh(sparkGeo(.3), sm); spark2.rotation.z = Math.PI / 4; spark2.position.z = -.04; G.add(spark2);
+    const core = glow(0xffe2b8, 1.4, .8), corona = glow(0xd97757, 2.8, .3); G.add(core, corona);
+    const rings = [];
+    for (let i = 0; i < 4; i++) {
+      const m = new T.MeshPhysicalMaterial({ color: 0xffffff, metalness: 1, roughness: .12, clearcoat: 1, envMapIntensity: 1.4, emissive: 0x000000 });
+      const r = new T.Mesh(new T.TorusGeometry(.7 + i * .17, .022 + (i % 2) * .01, 20, 160), m);
+      r.rotation.set(.3 + i * .55, i * .8, 0); r.userData = { dir: i % 2 ? -1 : 1, sp: .5 + i * .18, ax: new T.Vector3(Math.sin(i), 1, Math.cos(i * 2)).normalize(), h: i * .23 };
+      G.add(r); rings.push(r);
+    }
+    const NS = LOW ? 30 : 60, sp = new Float32Array(NS * 3), orb = []; for (let i = 0; i < NS; i++) orb.push({ r: .55 + Math.random() * .9, a: Math.random() * 6.28, y: (Math.random() - .5) * .9, s: .3 + Math.random() * .8 });
+    const sg = new T.BufferGeometry(); sg.setAttribute("position", new T.BufferAttribute(sp, 3));
+    const dust = new T.Points(sg, new T.PointsMaterial(Object.assign({ map: DOT, size: .05, color: 0xfff1d6 }, ADDA))); G.add(dust);
+    const c = new T.Color();
+    E.update = (dt, t) => {
+      const g = E.g; fx(g);
+      const q = cl(g, .05, .5); spark.scale.setScalar(Math.max(.001, elastic(q))); spark2.scale.copy(spark.scale);
+      spark.rotation.y += dt * (.8 + E.energy * 3); spark2.rotation.y -= dt * (.6 + E.energy * 2);
+      sm.emissiveIntensity = .45 + .2 * Math.sin(t * 2.4) + E.energy * .8;
+      core.material.opacity = (.6 + .25 * Math.sin(t * 2.4) + E.energy * .3) * q; corona.material.opacity = (.22 + .1 * Math.sin(t * 1.2)) * q;
+      rings.forEach((r, i) => {
+        const rq = cl(g, .35 + i * .1, .6 + i * .1); r.scale.setScalar(Math.max(.001, back(rq)));
+        r.rotateOnWorldAxis(r.userData.ax, dt * r.userData.sp * r.userData.dir * (1 + E.energy * 2));
+        c.setHSL((r.userData.h + t * .06) % 1, .7, .5); r.material.color.copy(c).lerp(new T.Color(0xffffff), .35);   // aurora sheen drifting across the metal
+        r.material.emissive.setHSL((r.userData.h + t * .06 + .5) % 1, .8, .08 + E.energy * .12);
+      });
+      orb.forEach((o, i) => { o.a += dt * o.s; sp.set([Math.cos(o.a) * o.r, o.y + Math.sin(o.a * 2) * .05, Math.sin(o.a) * o.r], i * 3); });
+      sg.attributes.position.needsUpdate = true; dust.material.opacity = cl(g, .7, 1);
+      E.energy = Math.max(0, E.energy - dt);
+    };
+    E.pulse = () => { E.energy = 1; }; E.disturb = () => { E.energy = Math.min(1, E.energy + .05); }; E.wobble = () => { E.energy = Math.min(1, E.energy + .4); };
     return E;
   }
   const ENTS = { core: entCore, flux: entFlux, res: entRes, eq: entEq };
+
+  /* code streams: the four matrices keep firing glyphs and light into the page while it is built */
+  function codeStream(sc, crew, panel) {
+    const glyphs = ["<", ">", "/", "{", "}", ";", "=", "0", "1", "#", "✦", ":"], cols = ["#ffcf9e", "#8fe6ff", "#f39a7a", "#ffe7c2"];
+    const NP = LOW ? 70 : 150, parts = [], hits = [];
+    for (let i = 0; i < NP; i++) { const s = new T.Sprite(new T.SpriteMaterial(Object.assign({ map: textTex(glyphs[i % glyphs.length], cols[i % 4]), opacity: 0 }, ADD))); s.scale.set(.34, .13, 1); sc.add(s); parts.push({ s, t: 1, from: 0, a: new T.Vector3(), c: new T.Vector3(), b: new T.Vector3(), sp: 1 }); }
+    const ND = LOW ? 160 : 360, dp = new Float32Array(ND * 3), dcol = new Float32Array(ND * 3), dots = [];
+    for (let i = 0; i < ND; i++) dots.push({ t: 1, a: new T.Vector3(), c: new T.Vector3(), b: new T.Vector3(), sp: 1, col: new T.Color() });
+    const dg = new T.BufferGeometry(); dg.setAttribute("position", new T.BufferAttribute(dp, 3)); dg.setAttribute("color", new T.BufferAttribute(dcol, 3));
+    sc.add(new T.Points(dg, new T.PointsMaterial(Object.assign({ map: DOT, size: .13, vertexColors: true }, ADDA))));
+    for (let i = 0; i < 12; i++) { const h = glow(0xffd9a8, .6, 0); sc.add(h); hits.push({ h, l: 0 }); }
+    const tint = [0xffb07a, 0x8fe6ff, 0xb9a6ff, 0xffe2b8].map(x => new T.Color(x));
+    const target = () => panel.localToWorld(new T.Vector3((Math.random() - .5) * 3.8, (Math.random() - .5) * 2.3, .1));
+    let k = 0, h = 0; const S = { intensity: 0, onHit: null };
+    const launch = (o, from) => { o.from = from; o.a.copy(crew[from].E.group.position); o.b.copy(target()); o.c.lerpVectors(o.a, o.b, .5).add(new T.Vector3((Math.random() - .5) * 1.2, .8 + Math.random() * .8, .6)); o.t = 0; o.sp = .8 + Math.random() * .9; };
+    const bez = (o, p, out) => { const u = 1 - p; return out.set(u * u * o.a.x + 2 * u * p * o.c.x + p * p * o.b.x, u * u * o.a.y + 2 * u * p * o.c.y + p * p * o.b.y, u * u * o.a.z + 2 * u * p * o.c.z + p * p * o.b.z); };
+    const tmp = new T.Vector3();
+    S.update = dt => {
+      const I = S.intensity;
+      parts.forEach(o => {
+        if (o.t >= 1) { if (I > 0 && Math.random() < dt * 6 * I) launch(o, k++ % crew.length); else { o.s.material.opacity = 0; return; } }
+        o.t = Math.min(1, o.t + dt * o.sp); bez(o, o.t, o.s.position); o.s.material.opacity = Math.sin(o.t * Math.PI) * .95;
+        if (o.t >= 1) { const H = hits[h++ % hits.length]; H.h.position.copy(o.b); H.l = 1; if (S.onHit) S.onHit(); }
+      });
+      dots.forEach((o, i) => {
+        if (o.t >= 1) { if (I > 0 && Math.random() < dt * 24 * I) { const f = k++ % crew.length; launch(o, f); o.col.copy(tint[f]); } else { dp.set([0, -99, 0], i * 3); return; } }
+        o.t = Math.min(1, o.t + dt * o.sp * 1.4); bez(o, o.t, tmp); dp.set([tmp.x, tmp.y, tmp.z], i * 3); const f = Math.sin(o.t * Math.PI); dcol.set([o.col.r * f, o.col.g * f, o.col.b * f], i * 3);
+      });
+      dg.attributes.position.needsUpdate = true; dg.attributes.color.needsUpdate = true;
+      hits.forEach(H => { H.l = Math.max(0, H.l - dt * 3); H.h.material.opacity = H.l * .9; H.h.scale.setScalar(.25 + (1 - H.l) * .8); });
+    };
+    return S;
+  }
+  /* the page itself comes alive: code types onto it as the streams arrive */
+  function codeScreen(panel) {
+    const c = document.createElement("canvas"); c.width = 1024; c.height = 668; const x = c.getContext("2d"), tex = new T.CanvasTexture(c);
+    const src = ['<header class="glass">I.C.A.N.</header>', '<section class="hero">', '  <h1>老師也可以做出自己的工具</h1>', '  <canvas id="robot3d"></canvas>', '</section>', '.flip { transform: rotateY(180deg) }', '.bento { grid-template-columns: repeat(4,1fr) }', 'onScroll(() => story.next())', '<form id="invite">…</form>', '@media (max-width:600px) { … }'];
+    const plane = new T.Mesh(new T.PlaneGeometry(4.2, 2.74), new T.MeshBasicMaterial({ map: tex, transparent: true })); plane.position.z = .056; panel.add(plane);
+    let chars = 0; const total = src.join("").length;
+    const draw = () => { x.clearRect(0, 0, 1024, 668); x.font = "26px ui-monospace,Menlo,monospace"; let left = chars;
+      src.forEach((l, i) => { if (left <= 0) return; const s = l.slice(0, left); left -= l.length; x.fillStyle = i % 3 === 0 ? "rgba(181,88,58,.55)" : "rgba(31,74,61,.45)"; x.fillText(s, 40, 96 + i * 54); });
+      tex.needsUpdate = true; };
+    draw();
+    return { add(n) { chars = Math.min(total, chars + n); draw(); }, fade(o) { plane.material.opacity = o; } };
+  }
+
 
   /* ---------- intro: the robot builds the page, turning to receive and place each piece ---------- */
   function intro(canvas, hooks) {
     const v = view(canvas, { fov: 32 });
     v.sc.background = null;
-    v.onResize = (w, h) => { const n = w / h < 1; v.cam.position.set(0, n ? 2.8 : 2.1, n ? 17 : 8.6); v.cam.lookAt(0, 1.35, 0); };
+    v.onResize = (w, h) => { const n = w / h < 1; v.cam.position.set(0, n ? 2.6 : 1.9, n ? 18 : 9.2); v.cam.lookAt(0, 1.4, 0); };
     v.onResize(canvas.clientWidth, canvas.clientHeight);
     const panel = new T.Group(); panel.position.set(0, 1.6, -1); v.sc.add(panel);
     panel.add(new T.Mesh(new T.BoxGeometry(4.3, 2.8, .1), M(0xf7f5ee, { roughness: .8 })));
@@ -1072,18 +1079,20 @@ window.ICAN3D = (function () {
     pieces.forEach(g => { g.visible = false; v.sc.add(g); });
     // four states of mind, each catching from its own side and beaming the piece into the page
     const crew = [
-      { ent: "core", pos: [-3.3, 1.5, .5], src: [-9, 1.8, 1], piece: 0 },
-      { ent: "flux", pos: [3.3, 1.5, .5], src: [9, 1.8, 1], piece: 2 },
-      { ent: "res", pos: [-1.6, .55, 1.9], src: [-1.6, 8, 2], piece: 1 },
-      { ent: "eq", pos: [1.7, .55, 2], src: [1.7, -5, 3], piece: 3 },
-    ].map(c => { const E = ENTS[c.ent](); E.group.position.set(...c.pos); E.group.scale.setScalar(.62); v.sc.add(E.group); return Object.assign(c, { E }); });
+      { ent: "core", pos: [-3.2, 2.55, .2], src: [-9, 3, 1], piece: 0 },
+      { ent: "flux", pos: [-2.9, .2, 1.3], src: [-8, -2, 2], piece: 2 },
+      { ent: "res", pos: [2.9, .2, 1.3], src: [8, -2, 2], piece: 1 },
+      { ent: "eq", pos: [3.2, 2.55, .2], src: [9, 3, 1], piece: 3 },
+    ].map(c => { const E = ENTS[c.ent](); E.group.position.set(...c.pos); E.group.scale.setScalar(.6); v.sc.add(E.group); return Object.assign(c, { E }); });
+    const screen = codeScreen(panel), stream = codeStream(v.sc, crew, panel); stream.onHit = () => screen.add(3);
     const beams = crew.map(() => { const g = new T.BufferGeometry(); g.setAttribute("position", new T.BufferAttribute(new Float32Array(6), 3)); const l = new T.Line(g, new T.LineBasicMaterial({ color: 0xffe2c0, transparent: true, opacity: 0, blending: T.AdditiveBlending })); v.sc.add(l); return l; });
     const V = (x, y, z) => new T.Vector3(x, y, z);
     const tasks = [], tw = (s, d, init, ez) => tasks.push({ s, d, init, ez: ez || ease, fn: null, done: false });
     hooks.line("從奇點生長：點、線、面");
     crew.forEach((c, i) => { c.E.g = 0; const s0 = i * .12; tw(s0, 1.5, () => p => { c.E.g = p; }, p => p); });
     const B0 = 1.7;
-    tw(B0, .01, () => { hooks.line("核心意識・資訊吞吐・空間共振・極致平衡，四態同時運算"); return () => { }; });
+    tw(B0 - .3, .01, () => { hooks.line("四座 AI 矩陣共同編碼中：權重・代碼・向量・星芒"); return () => { }; });
+    tw(B0 - .3, .4, () => p => { stream.intensity = p; });
     crew.forEach((c, i) => {
       const pc = pieces[c.piece], g = c.E.group, o = B0 + i * .18, beam = beams[i];
       tw(o, .4, () => { pc.visible = true; pc.position.set(...c.src); pc.scale.setScalar(.35); const a = pc.position.clone(); return p => { pc.position.lerpVectors(a, g.position, p); pc.scale.setScalar(lerp(.35, .05, p)); pc.rotation.z = (1 - p) * 3; pc.rotation.y = (1 - p) * 2; }; }, out);
@@ -1092,11 +1101,13 @@ window.ICAN3D = (function () {
       tw(o + .95, .3, () => { hooks.step(i); c.E.pulse(); crew.forEach(k => { k.E.progress = (i + 1) / 4; k.E.focus = (i + 1) / 4; if (k.E.wobble && k !== c) k.E.wobble(); }); const q0 = g.quaternion.clone(); return p => { g.quaternion.copy(q0).slerp(new T.Quaternion(), p); beam.material.opacity = (1 - p) * .35; }; });
     });
     const end = B0 + 3 * .18 + 1.3;
+    tw(end - .2, .3, () => p => { stream.intensity = 1 - p; });
     tw(end, .01, () => { hooks.line("完成！歡迎來到 I.C.A.N. 我也可以"); crew.forEach((c, i) => setTimeout(() => c.E.pulse(), i * 90)); return () => { }; });
     tw(end + .9, .01, () => { hooks.done(); return () => { }; });
     v.update = (dt, tt) => {
       for (const k of tasks) { if (k.done || tt < k.s) continue; if (!k.fn) k.fn = k.init(); const p = Math.min(1, (tt - k.s) / k.d); k.fn(k.ez(p)); if (p >= 1) k.done = true; }
       crew.forEach((c, i) => { c.E.update(dt, tt); c.E.group.position.y = c.pos[1] + Math.sin(tt * 1.6 + i) * .06; });
+      stream.update(dt);
     };
     return { stop() { v.dead = true; } };
   }
