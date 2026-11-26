@@ -481,13 +481,29 @@ window.ICAN3D = (function () {
 
   const RM = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const M = (c, o) => new T.MeshStandardMaterial(Object.assign({ color: c, roughness: .35, metalness: .2 }, o || {}));
+  const PM = (c, o) => new T.MeshPhysicalMaterial(Object.assign({ color: c, roughness: .48, metalness: 0, clearcoat: .45, clearcoatRoughness: .3, envMapIntensity: .45 }, o || {}));
   const MAT = {
-    shell: M(0xd97757, { roughness: .55, metalness: .05 }),
-    shell2: M(0xb5583a, { roughness: .6, metalness: .05 }),
-    acc: M(0xf3efe6, { roughness: .5 }),
-    silver: M(0xe6ddd0, { metalness: .2, roughness: .4 }),
-    star: new T.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0xf2b27a, emissiveIntensity: .7, roughness: .3 }),
+    shell: PM(0xd97757),
+    shell2: PM(0xc2644a, { roughness: .55 }),
+    acc: PM(0xf6f1e7, { roughness: .5, clearcoat: .3 }),
+    silver: PM(0xe9e1d4, { roughness: .35 }),
+    sole: PM(0xd9cdbd, { roughness: .7, clearcoat: 0 }),
+    star: new T.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0xf2b27a, emissiveIntensity: .75, roughness: .3 }),
   };
+  function envTex() {
+    const c = document.createElement("canvas"); c.width = 256; c.height = 128; const x = c.getContext("2d");
+    const g = x.createLinearGradient(0, 0, 0, 128); g.addColorStop(0, "#fff6ea"); g.addColorStop(.45, "#f3d9c4"); g.addColorStop(.55, "#8fa79c"); g.addColorStop(1, "#2a3b33");
+    x.fillStyle = g; x.fillRect(0, 0, 256, 128);
+    x.fillStyle = "rgba(255,255,255,.9)"; x.beginPath(); x.ellipse(70, 26, 26, 12, 0, 0, 7); x.fill();
+    const t = new T.CanvasTexture(c); t.mapping = T.EquirectangularReflectionMapping; return t;
+  }
+  function halo() {
+    const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+    const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, "rgba(255,214,150,.9)"); g.addColorStop(1, "rgba(255,214,150,0)");
+    x.fillStyle = g; x.fillRect(0, 0, 64, 64);
+    const sp = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(c), blending: T.AdditiveBlending, depthWrite: false, transparent: true }));
+    sp.scale.set(.6, .6, 1); return sp;
+  }
   const ease = p => p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
   const out = p => 1 - Math.pow(1 - p, 3);
   const lerp = (a, b, p) => a + (b - a) * p;
@@ -501,11 +517,12 @@ window.ICAN3D = (function () {
     function draw() {
       x.clearRect(0, 0, 512, 384);
       x.save(); x.translate(st.ex * 30, st.ey * 20);
+      x.fillStyle = "rgba(255,138,150,.32)"; for (const cx of [146, 366]) { x.beginPath(); x.ellipse(cx, 238, 34, 18, 0, 0, 7); x.fill(); }
       x.strokeStyle = "#3a2418"; x.fillStyle = "#3a2418"; x.lineCap = "round";
       const think = st.mode === "t";
       for (const cx of [196, 316]) {
         if (st.mode === "h") { x.lineWidth = 20; x.beginPath(); x.arc(cx, 196, 26, Math.PI * 1.15, Math.PI * 1.85); x.stroke(); }
-        else { x.lineWidth = 22; const h = st.blink ? 2 : 34; const oy = think ? -18 : 0; x.beginPath(); x.moveTo(cx + (think ? -10 : 0), 180 - h + oy); x.lineTo(cx + (think ? -10 : 0), 180 + h + oy); x.stroke(); }
+        else { x.lineWidth = 20; const h = st.blink ? 2 : 30; const oy = think ? -18 : 0; x.beginPath(); x.moveTo(cx + (think ? -10 : 0), 180 - h + oy); x.lineTo(cx + (think ? -10 : 0), 180 + h + oy); x.stroke(); }
       }
       if (think) { for (let i = 0; i < 3; i++) { x.beginPath(); x.arc(226 + i * 30, 282, 9, 0, 7); x.fill(); } }
       else if (st.cur) { x.fillStyle = "#3a2418"; x.fillRect(st.mode === "h" ? 238 : 246, 262, st.mode === "h" ? 36 : 18, st.mode === "h" ? 12 : 46); }
@@ -544,14 +561,14 @@ window.ICAN3D = (function () {
   }
 
   function bubbleGeo() {
-    const w = 1.9, h = 1.4, r = .62, sh = new T.Shape();
+    const w = 1.5, h = 1.1, r = .5, sh = new T.Shape();
     sh.moveTo(-w / 2 + r, -h / 2);
     sh.lineTo(w / 2 - r, -h / 2); sh.quadraticCurveTo(w / 2, -h / 2, w / 2, -h / 2 + r);
     sh.lineTo(w / 2, h / 2 - r); sh.quadraticCurveTo(w / 2, h / 2, w / 2 - r, h / 2);
     sh.lineTo(-w / 2 + r, h / 2); sh.quadraticCurveTo(-w / 2, h / 2, -w / 2, h / 2 - r);
     sh.lineTo(-w / 2, -h / 2 + r); sh.quadraticCurveTo(-w / 2, -h / 2, -w / 2 + r, -h / 2);
-    const g = new T.ExtrudeGeometry(sh, { depth: .62, bevelEnabled: true, bevelThickness: .2, bevelSize: .2, bevelSegments: 10, curveSegments: 28 });
-    g.translate(0, 0, -.31); return g;
+    const g = new T.ExtrudeGeometry(sh, { depth: .5, bevelEnabled: true, bevelThickness: .17, bevelSize: .17, bevelSegments: 12, curveSegments: 32 });
+    g.translate(0, 0, -.25); return g;
   }
   function pencil() {
     const g = new T.Group();
@@ -566,22 +583,29 @@ window.ICAN3D = (function () {
     const R = new T.Group(), P = { variant };
     const body = new T.Group(); R.add(body); P.body = body;
     // head: a speech bubble
-    const head = new T.Group(); head.position.y = 1.78; body.add(head); P.head = head;
+    const head = new T.Group(); head.position.y = 1.58; body.add(head); P.head = head;
     head.add(new T.Mesh(bubbleGeo(), MAT.shell));
-    const tail = new T.Mesh(new T.ConeGeometry(.2, .5, 24), MAT.shell); tail.scale.z = .75; tail.position.set(-.62, -.86, .05); tail.rotation.z = -2.45; head.add(tail);
+    const tail = new T.Mesh(new T.ConeGeometry(.16, .38, 24), MAT.shell); tail.scale.z = .7; tail.position.set(-.5, -.68, .04); tail.rotation.z = -2.45; head.add(tail);
     const ft = faceTex(); P.face = ft;
-    const face = new T.Mesh(new T.PlaneGeometry(1.6, 1.2), new T.MeshBasicMaterial({ map: ft.tex, transparent: true })); face.position.z = .52; head.add(face);
-    const stem = new T.Mesh(new T.CylinderGeometry(.035, .035, .28, 12), MAT.shell2); stem.position.y = .86; head.add(stem);
-    const star = new T.Mesh(starGeo(.17), MAT.star); star.position.y = 1.08; head.add(star); P.star = star;
+    const face = new T.Mesh(new T.PlaneGeometry(1.26, .95), new T.MeshBasicMaterial({ map: ft.tex, transparent: true })); face.position.z = .425; head.add(face);
+    const knob = new T.Mesh(new T.SphereGeometry(.07, 20, 14), MAT.acc); knob.position.y = .7; head.add(knob);
+    const stem = new T.Mesh(new T.CylinderGeometry(.03, .03, .22, 12), MAT.shell2); stem.position.y = .82; head.add(stem);
+    const star = new T.Mesh(starGeo(.14), MAT.star); star.position.y = 1.0; head.add(star); P.star = star;
+    const hl = halo(); hl.position.y = 1.0; head.add(hl); P.halo = hl;
     // body: a soft clay egg with a little page on the chest
-    const torso = new T.Mesh(new T.SphereGeometry(.6, 40, 28), MAT.shell2); torso.scale.set(1, .86, .82); torso.position.y = .66; body.add(torso);
+    const torso = new T.Mesh(new T.SphereGeometry(.56, 48, 32), MAT.shell2); torso.scale.set(1, .9, .84); torso.position.y = .64; body.add(torso);
+    const collar = new T.Mesh(new T.TorusGeometry(.32, .045, 14, 48), MAT.acc); collar.rotation.x = Math.PI / 2; collar.position.y = 1.08; body.add(collar);
+    const seam = new T.Mesh(new T.TorusGeometry(.535, .018, 10, 64), MAT.acc); seam.rotation.x = Math.PI / 2; seam.scale.z = .84; seam.position.y = .5; body.add(seam);
     const ct = chestTex(); P.chest = ct;
-    const panel = new T.Mesh(new T.PlaneGeometry(.5, .36), new T.MeshStandardMaterial({ map: ct, roughness: .8 })); panel.position.set(0, .7, .49); panel.rotation.x = -.08; body.add(panel);
+    const panel = new T.Mesh(new T.PlaneGeometry(.4, .3), new T.MeshStandardMaterial({ map: ct, roughness: .8 })); panel.position.set(0, .7, .468); panel.rotation.x = -.1; body.add(panel);
+    const clip = new T.Mesh(new T.BoxGeometry(.12, .05, .03), MAT.silver); clip.position.set(0, .86, .47); body.add(clip);
     for (const s of [-1, 1]) {
-      const sh = new T.Group(); sh.position.set(s * .56, .84, .02); body.add(sh);
-      const arm = capsule(.11, .22, MAT.shell); arm.position.y = -.2; sh.add(arm);
+      const sh = new T.Group(); sh.position.set(s * .52, .86, .02); body.add(sh);
+      sh.add(new T.Mesh(new T.SphereGeometry(.1, 20, 14), MAT.acc));
+      const arm = capsule(.095, .18, MAT.shell); arm.position.y = -.18; sh.add(arm);
+      const mitt = new T.Mesh(new T.SphereGeometry(.12, 20, 14), MAT.shell); mitt.scale.set(1, .9, .9); mitt.position.y = -.36; sh.add(mitt);
       sh.rotation.z = s * .35; P[s < 0 ? "armL" : "armR"] = sh;
-      if (s > 0) { const p = pencil(); p.position.set(.02, -.4, .1); p.rotation.x = -.5; sh.add(p); }
+      if (s > 0) { const p = pencil(); p.scale.setScalar(.85); p.position.set(.02, -.4, .12); p.rotation.x = -.5; sh.add(p); }
     }
     if (variant === "wheels") {
       for (const s of [-1, 1]) {
@@ -595,7 +619,9 @@ window.ICAN3D = (function () {
     } else {
       for (const s of [-1, 1]) {
         const f = new T.Group(); f.position.set(s * .27, .11, .06); body.add(f);
-        const shoe = new T.Mesh(new T.SphereGeometry(1, 28, 18), MAT.acc); shoe.scale.set(.22, .12, .3); f.add(shoe);
+        const shoe = new T.Mesh(new T.SphereGeometry(1, 32, 20), MAT.acc); shoe.scale.set(.2, .12, .28); f.add(shoe);
+        const sole = new T.Mesh(new T.CylinderGeometry(1, 1, 1, 32), MAT.sole); sole.scale.set(.2, .03, .28); sole.position.y = -.07; f.add(sole);
+        const lace = new T.Mesh(new T.BoxGeometry(.12, .03, .05), MAT.shell); lace.position.set(0, .1, .1); lace.rotation.x = -.35; f.add(lace);
         P[s < 0 ? "legL" : "legR"] = f;
       }
       P.feet = true;
@@ -618,6 +644,7 @@ window.ICAN3D = (function () {
     P.chest.offset.y -= dt * .12;
     P.star.rotation.y += dt * (P.happy > 0 ? 6 : P.think > 0 ? 4 : 1.1);
     P.star.scale.setScalar(P.think > 0 ? 1 + Math.sin(t * 8) * .12 : 1);
+    if (P.halo) { const k = .55 + Math.sin(t * 3) * .06 + (P.think > 0 || P.happy > 0 ? .25 : 0); P.halo.scale.set(k, k, 1); }
     if (P.wave > 0) { P.wave -= dt; P.armR.rotation.z = lerp(P.armR.rotation.z, 2.2 + Math.sin(t * 14) * .45, .3); }
     else if (P.reach == null) P.armR.rotation.z = lerp(P.armR.rotation.z, .35, .15);
     if (P.reach != null) { for (const a of [P.armL, P.armR]) a.rotation.x = lerp(a.rotation.x, P.reach, .2); }
@@ -638,8 +665,9 @@ window.ICAN3D = (function () {
     const r = new T.WebGLRenderer({ canvas, antialias: true, alpha: true });
     r.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
     const sc = new T.Scene(), cam = new T.PerspectiveCamera(o.fov || 30, 1, .1, 100);
-    sc.add(new T.HemisphereLight(0xffffff, 0x2a3b33, .9));
-    const d = new T.DirectionalLight(0xffffff, .95); d.position.set(3, 6, 5); sc.add(d);
+    try { const pm = new T.PMREMGenerator(r); sc.environment = pm.fromEquirectangular(envTex()).texture; pm.dispose(); } catch (e) { }
+    sc.add(new T.HemisphereLight(0xffffff, 0x2a3b33, .55));
+    const d = new T.DirectionalLight(0xfff2e6, .9); d.position.set(3, 6, 5); sc.add(d);
     const rim = new T.DirectionalLight(0x9fd8ff, .8); rim.position.set(-4, 3, -4); sc.add(rim);
     const warm = new T.PointLight(0xffc27a, .5, 12); warm.position.set(2, 1, 3); sc.add(warm);
     const v = { r, sc, cam, canvas, vis: true, update: null, t0: performance.now(), dead: false };
@@ -693,7 +721,7 @@ window.ICAN3D = (function () {
     const order = [0, 2, 1, 3];   // left: nav, right: cards, sky: hero, below: bottom bar
     crew.forEach((c, i) => {
       const k = order[i], pc = pieces[k], rb = c.rb, P = rb.P, g = rb.group, o = .3 + i * .26;
-      const hands = () => g.localToWorld(V(0, 1.0, 1.0));
+      const hands = () => g.localToWorld(V(0, .95, .95));
       tw(o, .28, () => { P.think = .7; const a = g.rotation.y, h = P.head.rotation.x; return p => { g.rotation.y = lerp(a, c.look[0], p); P.head.rotation.x = lerp(h, c.look[1], p); }; });
       tw(o + .08, .42, () => { pc.visible = true; pc.position.set(...c.src); pc.scale.setScalar(.3); P.reach = c.reach; const a = pc.position.clone(); return p => { pc.position.lerpVectors(a, hands(), p); pc.rotation.z = (1 - p) * 2.5; pc.rotation.y = g.rotation.y; }; }, out);
       tw(o + .52, .3, () => { const a = g.rotation.y, h = P.head.rotation.x, p0 = g.position.clone(); const tp = Math.atan2(panel.position.x - p0.x, panel.position.z - p0.z); const p1 = p0.clone().lerp(V(panel.position.x, 0, panel.position.z), .18); P.walk = 1; P.reach = -1.2; return p => { g.rotation.y = lerp(a, tp, p); P.head.rotation.x = lerp(h, -.1, p); g.position.lerpVectors(p0, p1, p); pc.position.copy(hands()); pc.rotation.y = g.rotation.y; if (p === 1) P.walk = 0; }; });
@@ -791,12 +819,12 @@ return `${o.noShadow?"":`<ellipse cx="100" cy="212" rx="60" ry="6" fill="#000" o
 <g class="arm armR" id="${p}arm"><ellipse cx="154" cy="160" rx="11" ry="20" fill="${T}" transform="rotate(-25 154 160)"/><g transform="rotate(-30 168 176)"><rect x="164" y="150" width="8" height="40" rx="2" fill="#f4cf4a"/><path d="M164 190 l4 10 l4 -10z" fill="#e8c39a"/><rect x="164" y="146" width="8" height="5" fill="#f29aa8"/></g></g>
 <ellipse cx="100" cy="160" rx="52" ry="42" fill="${D}"/>
 <rect x="80" y="150" width="40" height="26" rx="4" fill="${C}"/><g fill="#c9b8a6"><rect x="85" y="155" width="26" height="3" rx="1.5"/><rect x="85" y="162" width="20" height="3" rx="1.5"/><rect x="85" y="169" width="24" height="3" rx="1.5"/></g>
-<line x1="100" y1="34" x2="100" y2="16" stroke="${D}" stroke-width="4" stroke-linecap="round"/>
+<g transform="translate(20 20) scale(.8)"><line x1="100" y1="34" x2="100" y2="16" stroke="${D}" stroke-width="4" stroke-linecap="round"/>
 <g class="ant"><path d="M100 2C101 8.5 103.5 11 110 12C103.5 13 101 15.5 100 22C99 15.5 96.5 13 90 12C96.5 11 99 8.5 100 2Z" fill="#fff4dc" stroke="#f2b27a" stroke-width="1"/></g>
 <path d="M58 30 H142 Q182 30 182 70 V88 Q182 128 142 128 H74 L36 148 L56 128 Q18 128 18 88 V70 Q18 30 58 30Z" fill="${T}"/>
 <path d="M58 36 H140 Q170 36 174 60" stroke="#fff" stroke-opacity=".35" stroke-width="5" fill="none" stroke-linecap="round"/>
 <g class="eyes" id="${p}eyes"><rect x="78" y="62" width="9" height="26" rx="4.5" fill="${K}"/><rect x="113" y="62" width="9" height="26" rx="4.5" fill="${K}"/></g>
-<path id="${p}mouth" d="M100 100 v14" stroke="${K}" stroke-width="6" stroke-linecap="round" fill="none"/>`;
+<path id="${p}mouth" d="M100 100 v14" stroke="${K}" stroke-width="6" stroke-linecap="round" fill="none"/></g>`;
 };
 </script>
 <script>
