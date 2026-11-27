@@ -23,26 +23,27 @@ from mathutils.bvhtree import BVHTree
 WALL = 2.6              # 底座殼厚
 HEAD_WALL = 2.5         # 頭部殼厚
 CLEAR = 1.5             # 頭部與凹槽的間隙
-BASE_R, BASE_H = 65.0, 30.0       # 底座半徑、高度
+BASE_R, BASE_H = 65.0, 38.0       # 底座半徑、高度（38：主板插杜邦線也放得下）
 BASE_BEVEL = 5.0                  # 底座外緣倒角
-HEAD_R = 35.0                     # 頭部半徑（Ø70）
+HEAD_R = 38.0                     # 頭部半徑（Ø76：螢幕模組含排針凸片長 45.5 mm）
 SINK = 12.5                       # 頭部陷入底座的深度
 SOCKET_R = HEAD_R + CLEAR         # 凹槽球半徑
 HEAD_C = Vector((0, 0, BASE_H - SINK - CLEAR + HEAD_R + 0.0))   # 頭部球心（與凹槽同心）
 # 螢幕（1.28 吋 GC9A01 圓形模組：可視區 Ø32.4，模組 Ø37.5）
-FACET_R = 22.0          # 正面平台半徑
+FACET_R = 28.5          # 正面平台半徑（越大，螢幕越往後縮，凸片才不會撞到殼）
 SCREEN_RECESS = 1.5     # 玻璃凹槽深度
-GLASS_R = 19.0          # 玻璃片半徑（凹槽 19.5，四周留 0.5 縫）
+GLASS_R = 23.5          # 玻璃片半徑（凹槽 24.0，四周留 0.5 縫）
 WINDOW_R = 16.6         # 螢幕窗口半徑
 SPLIT_Y = -12.0         # 頭部前蓋／後殼分割面
 SPLIT_GAP = 0.4
 # 轉軸塔（SG90：本體 22.8 × 12.2 × 22.7）
 TOWER_R = 15.0
-TOWER_TOP = 30.0        # 塔頂＝馬達本體頂面高度
+TOWER_TOP = BASE_H      # 塔頂＝馬達本體頂面高度
 SERVO = (23.4, 12.8)    # 馬達槽（含 0.3 間隙）
 NECK_OPEN_R = 17.5      # 頭部底部開口（讓軸塔伸進去）
-BRIDGE_Z = 36.5         # 頭內橋板高度（舵盤鎖在這）
+BRIDGE_Z = TOWER_TOP + 6.5   # 頭內橋板高度（舵盤鎖在這）
 SEG = 96
+LID_POSTS = (10, 130, 250)   # 底蓋固定柱角度（避開主板、喇叭、USB）
 DEBUG = '--debug' in sys.argv
 
 C_SHELL = (0.851, 0.443, 0.310)     # 陶土橘
@@ -192,11 +193,11 @@ def build_base(M):
     tab_top = TOWER_TOP - 6.8 + 2.5                                         # SG90 耳朵上緣（本體頂往下約 4.3 mm）
     tabs = box("ServoTabSlot", 33.0, SERVO[1], tab_top + 2, loc=(0, 0, tab_top / 2 - 1))
     boolean(base, tabs)                                                     # 耳朵寬的通道：馬達從下方推入，耳朵頂住上方擋肩，用螺絲往上鎖
-    wire = box("WireSlot", 8, 6, 14, loc=(0, -(SERVO[1] / 2 + 2.5), TOWER_TOP - 5))
-    boolean(base, wire)                                                     # 螢幕排線從塔內穿到頭部
+    wire = box("WireChannel", 8, 5.5, TOWER_TOP + 6, loc=(0, -(SERVO[1] / 2 + 3.2), TOWER_TOP / 2 + 2))
+    boolean(base, wire)                                                     # 走線通道：從底座內部沿軸塔前壁一路通到頭部
 
     # 背面電源線孔（USB-C 線頭 12 × 6.5）
-    usb = box("USB_Hole", 12.5, 20, 7.0, loc=(0, BASE_R - 3, 9.0))
+    usb = box("USB_Hole", 12.5, 20, 7.0, loc=(0, BASE_R - 3, 9.0))   # USB-C 線頭
     add_bevel(usb, 2.4, 4, 60); apply_all(usb)
     boolean(base, usb)
     # 背面散熱槽（5 條）
@@ -210,7 +211,7 @@ def build_base(M):
 
     # 底蓋固定柱 ×3（M2 自攻螺絲，從底部鎖上）
     for i in range(3):
-        a = math.radians(60 + 120 * i)
+        a = math.radians(LID_POSTS[i])
         p = (math.cos(a) * (BASE_R - WALL - 2.9), math.sin(a) * (BASE_R - WALL - 2.9))
         post = cyl(f"LidPost_{i+1}", 3.5, 10, loc=(p[0], p[1], WALL + 5), verts=32)
         boolean(base, post, op='UNION')
@@ -230,7 +231,7 @@ def build_base(M):
     array(grill, 5, (3, 0, 0)); array(grill, 5, (0, 3, 0)); apply_all(grill)
     boolean(lid, grill)
     for i in range(3):                                                      # 對應固定柱的沉頭螺絲孔
-        a = math.radians(60 + 120 * i)
+        a = math.radians(LID_POSTS[i])
         p = (math.cos(a) * (BASE_R - WALL - 2.9), math.sin(a) * (BASE_R - WALL - 2.9))
         boolean(lid, cyl(f"LidScrew_{i+1}", 1.1, 10, loc=(p[0], p[1], 0), verts=16))
         bpy.ops.mesh.primitive_cone_add(vertices=24, radius1=2.2, radius2=1.1, depth=1.2, location=(p[0], p[1], 0.6))
@@ -319,15 +320,26 @@ def hardware_proxies(M):
         for c in o.users_collection: c.objects.unlink(o)
         col.objects.link(o); assign(o, M["proxy"]); items.append(o)
     rx = (math.radians(90), 0, 0)
-    fy = HEAD_C.y - math.sqrt(HEAD_R ** 2 - FACET_R ** 2) + SCREEN_RECESS + HEAD_WALL
-    put(cyl("HW_圓形螢幕_GC9A01_1.28", 18.75, 4.0, loc=(0, fy + 2.3, HEAD_C.z), rot=rx))
-    put(box("HW_SG90", 22.8, 12.2, 22.6, loc=(0, 0, TOWER_TOP - 0.05 - 22.6 / 2)))
-    put(cyl("HW_SG90_轉軸", 2.4, 5.8, loc=(0, 0, TOWER_TOP + 3.05)))
-    put(box("HW_ESP32-S3_DevKit", 63.0, 25.4, 10.0, loc=(0, 30, WALL + 6.0)))
-    put(cyl("HW_喇叭_28mm", 14.0, 5.0, loc=(0, -46, WALL + 3.0)))
-    put(box("HW_MAX98357A", 18.0, 18.0, 4.0, loc=(-34, -22, WALL + 3.0)))
-    put(box("HW_INMP441", 14.0, 14.0, 3.5, loc=(0, -50, BASE_H - WALL - 2.2)))
-    put(box("HW_USB-C母座", 9.0, 12.0, 4.0, loc=(0, BASE_R - WALL - 7.2, 9.0)))
+    fy = HEAD_C.y - math.sqrt(HEAD_R ** 2 - FACET_R ** 2) + SCREEN_RECESS + HEAD_WALL   # 螢幕窗內側平面
+    # 圓形螢幕模組（38 × 45.5 × 4.5，下方凸片有 7 個焊點；線直接焊上，不插杜邦）
+    yd = fy + 0.3 + 2.25
+    put(cyl("HW_螢幕_圓形本體", 19.0, 4.5, loc=(0, yd, HEAD_C.z), rot=rx))
+    put(box("HW_螢幕_排針凸片", 17.8, 4.5, 7.5, loc=(0, yd, HEAD_C.z - 19.0 - 3.75 + 0.01)))
+    # 伺服馬達 SG90／MG90S（180 度版）
+    put(box("HW_伺服馬達", 22.8, 12.2, 22.6, loc=(0, 0, TOWER_TOP - 0.05 - 22.6 / 2)))
+    put(cyl("HW_伺服馬達_轉軸", 2.4, 5.8, loc=(0, 0, TOWER_TOP + 3.05)))
+    # ESP32-S3 N16R8（63.5 × 28，已焊排針朝下，下方插杜邦母頭＋線彎折空間）
+    ez = WALL + 0.4 + 19.0            # 排針塑膠座 2.5 + 杜邦母頭 14 + 線彎折 2.5
+    put(box("HW_ESP32-S3_板子與模組", 63.5, 28.0, 5.0, loc=(0, 38.0, ez + 2.5)))
+    put(box("HW_ESP32-S3_排針與杜邦", 63.5, 28.0, 19.0, loc=(0, 38.0, ez - 9.5)))
+    # 28 mm 喇叭（朝下貼底蓋喇叭孔）
+    put(cyl("HW_喇叭_28mm", 14.0, 5.0, loc=(0, -46, WALL + 2.55)))
+    # MAX98357A（焊好排針＋綠色接線端子，朝下插杜邦）
+    put(box("HW_MAX98357A_含端子與杜邦", 18.0, 18.0, 31.0, loc=(-44, -14, WALL + 0.4 + 15.5)))
+    # INMP441（貼頂蓋麥克風孔，排針朝下插杜邦）
+    put(box("HW_INMP441_含杜邦", 16.0, 16.0, 21.0, loc=(0, -50, BASE_H - WALL - 0.2 - 10.5)))
+    # USB-C 母座轉接板（電源）
+    put(box("HW_USB-C母座板", 10.0, 9.6, 4.5, loc=(0, BASE_R - WALL - 0.3 - 4.8, 9.0)))
     for o in items:
         o.display_type = 'WIRE'; o.hide_render = True
     return items
@@ -345,6 +357,10 @@ def fit_check(shells, proxies):
         tp = bvh(p)
         for n, t in trees.items():
             if tp.overlap(t): bad.append((p.name, n))
+    for i, a in enumerate(proxies):                 # 零件彼此之間也不能重疊
+        ta = bvh(a)
+        for b in proxies[i + 1:]:
+            if a.name.split("_")[1] != b.name.split("_")[1] and ta.overlap(bvh(b)): bad.append((a.name, b.name))
     print("── 硬體容納檢查 ──")
     print("全部放得下，沒有撞到外殼" if not bad else "\n".join(f"⚠ {a} 碰到 {b}" for a, b in bad))
     return bad
